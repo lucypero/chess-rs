@@ -6,6 +6,7 @@ use std::convert::TryFrom;
 use std::env;
 use std::fmt;
 use std::io::{self, BufRead};
+use std::ops;
 use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -37,6 +38,7 @@ enum ChessPiece {
 
 // Represents coordinates and distances on the board
 //  the origin (0,0) is at the bottom left corner of the board (A1)
+#[derive(Clone, Copy)]
 struct Coord {
     x: i32,
     y: i32,
@@ -120,9 +122,76 @@ impl From<Tile> for Coord {
     }
 }
 
+// Operator overloading for coordinates
+impl ops::Add<Coord> for Coord {
+    type Output = Self;
+
+    fn add(self, _rhs: Self) -> Self {
+        Coord {
+            x: self.x + _rhs.x,
+            y: self.y + _rhs.y,
+        }
+    }
+}
+
+impl ops::Sub<Coord> for Coord {
+    type Output = Self;
+
+    fn sub(self, _rhs: Self) -> Self {
+        Coord {
+            x: self.x - _rhs.x,
+            y: self.y - _rhs.y,
+        }
+    }
+}
+
+impl ops::Mul<Coord> for Coord {
+    type Output = Self;
+
+    fn mul(self, _rhs: Self) -> Self {
+        Coord {
+            x: self.x * _rhs.x,
+            y: self.y * _rhs.y,
+        }
+    }
+}
+
+impl ops::Div<Coord> for Coord {
+    type Output = Self;
+
+    fn div(self, _rhs: Self) -> Self {
+        Coord {
+            x: self.x / _rhs.x,
+            y: self.y / _rhs.y,
+        }
+    }
+}
+
+impl ops::Div<i32> for Coord {
+    type Output = Self;
+
+    fn div(self, _rhs: i32) -> Self {
+        Coord {
+            x: self.x / _rhs,
+            y: self.y / _rhs,
+        }
+    }
+}
+
+impl ops::Mul<i32> for Coord {
+    type Output = Self;
+
+    fn mul(self, _rhs: i32) -> Self {
+        Coord {
+            x: self.x * _rhs,
+            y: self.y * _rhs,
+        }
+    }
+}
+
 impl Coord {
     //  other - self
-    fn distance(&self, other: &Coord) -> Coord {
+    fn distance(&self, other: Coord) -> Coord {
         Coord {
             x: other.x - self.x,
             y: other.y - self.y,
@@ -130,8 +199,22 @@ impl Coord {
     }
 
     // for now just return the highest component
-    fn magnitude(&self) -> i32 {
-        std::cmp::max(self.x.abs(), self.y.abs())
+    // Returns a value only if the vector is either a horizontal,
+    //    vertical or diagonal line (←↑→↓↖↗↘↙), otherwise returns none
+    fn magnitude(&self) -> Option<i32> {
+        if self.x == 0 || //vertical
+           self.y == 0 || //horizontal
+           self.y.abs() == self.x.abs()
+        // diagonal
+        {
+            Some(std::cmp::max(self.x.abs(), self.y.abs()))
+        } else {
+            None
+        }
+    }
+
+    fn unit(&self) -> Self {
+        *self / self.magnitude().unwrap()
     }
 }
 
@@ -204,6 +287,80 @@ enum Tile {
     F1,
     G1,
     H1,
+}
+
+impl fmt::Display for Tile {
+    // This trait requires `fmt` with this exact signature.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let disp = match self {
+            Tile::A1 => "A1",
+            Tile::A2 => "A2",
+            Tile::A3 => "A3",
+            Tile::A4 => "A4",
+            Tile::A5 => "A5",
+            Tile::A6 => "A6",
+            Tile::A7 => "A7",
+            Tile::A8 => "A8",
+            Tile::B1 => "B1",
+            Tile::B2 => "B2",
+            Tile::B3 => "B3",
+            Tile::B4 => "B4",
+            Tile::B5 => "B5",
+            Tile::B6 => "B6",
+            Tile::B7 => "B7",
+            Tile::B8 => "B8",
+            Tile::C1 => "C1",
+            Tile::C2 => "C2",
+            Tile::C3 => "C3",
+            Tile::C4 => "C4",
+            Tile::C5 => "C5",
+            Tile::C6 => "C6",
+            Tile::C7 => "C7",
+            Tile::C8 => "C8",
+            Tile::D1 => "D1",
+            Tile::D2 => "D2",
+            Tile::D3 => "D3",
+            Tile::D4 => "D4",
+            Tile::D5 => "D5",
+            Tile::D6 => "D6",
+            Tile::D7 => "D7",
+            Tile::D8 => "D8",
+            Tile::E1 => "E1",
+            Tile::E2 => "E2",
+            Tile::E3 => "E3",
+            Tile::E4 => "E4",
+            Tile::E5 => "E5",
+            Tile::E6 => "E6",
+            Tile::E7 => "E7",
+            Tile::E8 => "E8",
+            Tile::F1 => "F1",
+            Tile::F2 => "F2",
+            Tile::F3 => "F3",
+            Tile::F4 => "F4",
+            Tile::F5 => "F5",
+            Tile::F6 => "F6",
+            Tile::F7 => "F7",
+            Tile::F8 => "F8",
+            Tile::G1 => "G1",
+            Tile::G2 => "G2",
+            Tile::G3 => "G3",
+            Tile::G4 => "G4",
+            Tile::G5 => "G5",
+            Tile::G6 => "G6",
+            Tile::G7 => "G7",
+            Tile::G8 => "G8",
+            Tile::H1 => "H1",
+            Tile::H2 => "H2",
+            Tile::H3 => "H3",
+            Tile::H4 => "H4",
+            Tile::H5 => "H5",
+            Tile::H6 => "H6",
+            Tile::H7 => "H7",
+            Tile::H8 => "H8",
+        };
+
+        write!(f, "{}", disp)
+    }
 }
 
 impl TryFrom<Coord> for Tile {
@@ -447,12 +604,10 @@ fn is_piece_move_legal(piece: &TeamedChessPiece, chess_move: &Move, board: &Boar
     let tile_from_coord = Coord::from(chess_move.tile_from);
     let tile_to_coord = Coord::from(chess_move.tile_to);
 
-    let coord_distance = tile_from_coord.distance(&tile_to_coord);
+    let coord_distance = tile_from_coord.distance(tile_to_coord);
 
     match piece {
         TeamedChessPiece(team, ChessPiece::Pawn) => {
-            let _magn = coord_distance.magnitude();
-
             //team factor (if black, it moves down, if white it moves up)
             let team_factor = match team {
                 ChessTeam::White => 1,
@@ -516,7 +671,100 @@ fn is_piece_move_legal(piece: &TeamedChessPiece, chess_move: &Move, board: &Boar
 
             false
         }
-        _ => true,
+        TeamedChessPiece(_, ChessPiece::King) => {
+            let magn = coord_distance.magnitude();
+
+            //check movement
+            if magn.is_none() {
+                return false;
+            }
+
+            //magnitude has to be one
+            let magn = magn.unwrap();
+            if magn != 1 {
+                return false;
+            }
+
+            //check if there is a friendly piece in the way
+            if !board.is_path_clear(piece, chess_move) {
+                return false;
+            }
+
+            true
+        }
+        TeamedChessPiece(_, ChessPiece::Rook) => {
+            let magn = coord_distance.magnitude();
+
+            //check movement
+            if magn.is_none() {
+                return false;
+            }
+
+            //line has to be a horizontal or vertical line
+            if !(coord_distance.x == 0 || coord_distance.y == 0) {
+                return false;
+            }
+
+            //check if there is a friendly piece in the way
+            if !board.is_path_clear(piece, chess_move) {
+                return false;
+            }
+
+            true
+        }
+        TeamedChessPiece(_, ChessPiece::Bishop) => {
+            let magn = coord_distance.magnitude();
+
+            //check movement
+            if magn.is_none() {
+                return false;
+            }
+
+            //line has to be a diagonal
+            if !(coord_distance.x.abs() == coord_distance.y.abs()) {
+                return false;
+            }
+
+            //check if there is a friendly piece in the way
+            if !board.is_path_clear(piece, chess_move) {
+                return false;
+            }
+
+            true
+        }
+        TeamedChessPiece(_, ChessPiece::Queen) => {
+            let magn = coord_distance.magnitude();
+
+            //check movement
+            if magn.is_none() {
+                return false;
+            }
+
+            // if magnitude returns something then it is a valid queen move
+
+            //check if there is a friendly piece in the way
+            if !board.is_path_clear(piece, chess_move) {
+                return false;
+            }
+
+            true
+        }
+        TeamedChessPiece(_, ChessPiece::Knight) => {
+            //checking if the move is an L
+
+            if !((coord_distance.x.abs() == 2 && coord_distance.y.abs() == 1)
+                || (coord_distance.x.abs() == 1 && coord_distance.y.abs() == 2))
+            {
+                return false;
+            }
+
+            //check if there is a friendly piece in the way
+            if board.is_friendly_piece_at_destination(piece, chess_move) {
+                return false;
+            }
+
+            true
+        }
     }
 }
 
@@ -680,6 +928,59 @@ impl Board {
         self.piece_locations.get(&tile)
     }
 
+    // Checks if the path is clear for the piece.
+    //   false if there is a friendly piece in (tile_from, tile_to]
+    //   false if there is an enemy piece in (tile_from, tile_to) (not including tile_to)
+    //   otherwise, true
+    fn is_path_clear(&self, piece: &TeamedChessPiece, chess_move: &Move) -> bool {
+        //ensure that the distance is a "good line", otherwise it makes no sense.
+        let tile_from_coord = Coord::from(chess_move.tile_from);
+        let tile_to_coord = Coord::from(chess_move.tile_to);
+
+        let coord_distance = tile_from_coord.distance(tile_to_coord);
+        let magn = coord_distance.magnitude().unwrap();
+
+        //loop through the distance
+        for i in 1..magn {
+            //get direction to destination
+            let coord_iter = tile_from_coord + (tile_to_coord - tile_from_coord).unit() * i;
+
+            let tile_iter = Tile::try_from(coord_iter).unwrap();
+            print!("is_path clear: is piece at {}? ", tile_iter);
+
+            let piece_in_path_res = self.get_piece(tile_iter);
+
+            println!("{}", piece_in_path_res.is_some());
+
+            if piece_in_path_res.is_some() {
+                return false;
+            }
+        }
+
+        // finally, check if there is a friendly piece at the destination tile
+        if self.is_friendly_piece_at_destination(piece, chess_move) {
+            return false;
+        }
+
+        true
+    }
+
+    fn is_friendly_piece_at_destination(
+        &self,
+        piece: &TeamedChessPiece,
+        chess_move: &Move,
+    ) -> bool {
+        let piece_dest = self.get_piece(chess_move.tile_to);
+
+        if let Some(TeamedChessPiece(team, _)) = piece_dest {
+            if *team == piece.0 {
+                return true;
+            }
+        }
+
+        false
+    }
+
     fn print(&self) {
         println!();
 
@@ -770,8 +1071,15 @@ fn main() {
 
             let tile_to_str = line.split_off(2);
 
-            let tile_from_res = Tile::from_str(line.as_str());
-            let tile_to_res = Tile::from_str(tile_to_str.as_str());
+            //capitalize letters
+            fn capitalize_coord_str(str: String) -> String {
+                let mut v: Vec<char> = str.as_str().chars().collect();
+                v[0] = v[0].to_uppercase().nth(0).unwrap();
+                v.into_iter().collect()
+            }
+
+            let tile_from_res = Tile::from_str(capitalize_coord_str(line).as_str());
+            let tile_to_res = Tile::from_str(capitalize_coord_str(tile_to_str).as_str());
 
             if !tile_from_res.is_ok() || !tile_to_res.is_ok() {
                 println!("Move doesn't make sense. The tiles are wrong. Try again.");
