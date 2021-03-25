@@ -9,6 +9,8 @@ use std::io::{self, BufRead};
 use std::ops;
 use std::str::FromStr;
 
+mod move_parser;
+
 #[derive(Debug, Eq, PartialEq)]
 enum ChessTeam {
     Black,
@@ -27,6 +29,7 @@ impl fmt::Display for ChessTeam {
     }
 }
 
+#[derive(Eq, PartialEq)]
 enum ChessPiece {
     Pawn,
     Rook,
@@ -527,9 +530,17 @@ impl FromStr for Tile {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 struct Move {
     tile_from: Tile,
     tile_to: Tile,
+}
+
+impl fmt::Display for Move {
+    // This trait requires `fmt` with this exact signature.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Move: {} to {}", self.tile_from, self.tile_to)
+    }
 }
 
 struct GameState {
@@ -597,6 +608,38 @@ impl GameState {
             ChessTeam::Black
         }
     }
+}
+
+fn capitalize_coord_str(str: String) -> String {
+    let mut v: Vec<char> = str.as_str().chars().collect();
+    v[0] = v[0].to_uppercase().nth(0).unwrap();
+    v.into_iter().collect()
+}
+
+// TODO(lucypero): move this to game or board
+//  only understands pawn moves for now
+
+// This uses our move parser in move_parser::parse() then processes the output
+//  It finds the right piece to move, and the destination tile, and constructs a Move
+fn parse_move(mut move_input: String, game: &GameState) -> Result<Move, String> {
+    //Basically:
+
+    move_input.retain(|c| !c.is_whitespace());
+    move_input = move_input.to_lowercase();
+
+    let nodes = move_parser::parse(move_input.chars().collect());
+
+    if nodes.is_err() {
+        return Err("Move could not be parsed.".to_string());
+    }
+
+    //Processing parser output
+
+    let board = game.get_board();
+
+    println!("{:?}", nodes);
+
+    Err("can't parse".to_string())
 }
 
 // Part of move validation. Validates chess piece move logic
@@ -1069,27 +1112,45 @@ fn main() {
         } else {
             // This should be a chess move
 
-            let tile_to_str = line.split_off(2);
-
             //capitalize letters
-            fn capitalize_coord_str(str: String) -> String {
-                let mut v: Vec<char> = str.as_str().chars().collect();
-                v[0] = v[0].to_uppercase().nth(0).unwrap();
-                v.into_iter().collect()
-            }
 
-            let tile_from_res = Tile::from_str(capitalize_coord_str(line).as_str());
-            let tile_to_res = Tile::from_str(capitalize_coord_str(tile_to_str).as_str());
+            //trying to parse real chess move notation...
 
-            if !tile_from_res.is_ok() || !tile_to_res.is_ok() {
-                println!("Move doesn't make sense. The tiles are wrong. Try again.");
+            //first try to understand E4
+
+            // if it is just a coordinate, it means that it is a pawn move to that coordinate
+            // you gotta get the pawn of that file
+            // move from target tile downwards until you find the pawn
+
+            //let tile_to_str = line.split_off(2);
+
+            let parse_res = parse_move(line, &game);
+            if parse_res.is_err() {
+                println!("error while parsing move: {}", parse_res.unwrap_err());
                 continue;
             }
 
-            let tile_from = tile_from_res.unwrap();
-            let tile_to = tile_to_res.unwrap();
+            let the_move = parse_res.unwrap();
 
-            let move_res = game.perform_move(Move { tile_from, tile_to });
+            // old way of parsing moves "E2E4" (it's bad)
+            {
+                // let tile_to_str = line.split_off(2);
+
+                // let tile_from_res = Tile::from_str(capitalize_coord_str(line).as_str());
+                // let tile_to_res = Tile::from_str(capitalize_coord_str(tile_to_str).as_str());
+
+                // if !tile_from_res.is_ok() || !tile_to_res.is_ok() {
+                //     println!("Move doesn't make sense. The tiles are wrong. Try again.");
+                //     continue;
+                // }
+
+                // let tile_from = tile_from_res.unwrap();
+                // let tile_to = tile_to_res.unwrap();
+
+                // let the_move = Move {tile_from, tile_to};
+            }
+
+            let move_res = game.perform_move(the_move);
             if move_res.is_err() {
                 println!("Error while attempting move: {}", move_res.unwrap_err());
                 continue;
@@ -1098,7 +1159,7 @@ fn main() {
             //move done successfully. move on to the next move
             //after move, print board again
 
-            println!("{:?} to {:?}", tile_from, tile_to);
+            println!("{}", the_move);
             game.get_board().print();
             print!("\n\n{} to move. What's your move? ...\n", game.whose_turn());
         }
