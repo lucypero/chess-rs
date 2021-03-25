@@ -625,7 +625,6 @@ fn parse_move(mut move_input: String, game: &GameState) -> Result<Move, String> 
     //Basically:
 
     move_input.retain(|c| !c.is_whitespace());
-    move_input = move_input.to_lowercase();
 
     let nodes = move_parser::parse(move_input.chars().collect());
 

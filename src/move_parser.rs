@@ -40,11 +40,19 @@ fn is_there_tile_ahead(input: &Vec<char>, index: usize) -> bool {
     false
 }
 
-fn parse_pawn_capture(input: &Vec<char>, i: &mut usize) -> Result<Vec<Node>, ()> {
+fn parse_pawn_capture(
+    input: &Vec<char>,
+    i: &mut usize,
+    could_be_something_else: &mut bool,
+) -> Result<Vec<Node>, ()> {
     let mut result: Vec<Node> = vec![];
     let mut j = *i;
 
     if is_file(input[j]) {
+        if is_chess_piece(input[j]) {
+            *could_be_something_else = true;
+        }
+
         result.push(Node::Piece('-', input[j], '-'));
         j += 1;
         let mut char_ahead = safe_index(input, j)?;
@@ -160,7 +168,17 @@ fn parse_check_or_mate(input: &Vec<char>, i: &mut usize) -> Result<Node, ()> {
 }
 
 fn is_chess_piece(c: char) -> bool {
-    if c == 'r' || c == 'n' || c == 'b' || c == 'k' || c == 'q' {
+    if c == 'r'
+        || c == 'n'
+        || c == 'b'
+        || c == 'k'
+        || c == 'q'
+        || c == 'R'
+        || c == 'N'
+        || c == 'B'
+        || c == 'K'
+        || c == 'Q'
+    {
         true
     } else {
         false
@@ -202,43 +220,63 @@ fn parse_castle(input: &Vec<char>, i: &mut usize) -> Result<Node, ()> {
 //Parses a string representing a chess move in FIDE move notation ("eg: Be4")
 // Returns a Vec<Node> representing the move. Err(()) if it could not be parsed
 //recommended pre-processing of input: strip whitespace and lowercase everything
-pub fn parse(input: Vec<char>) -> Result<Vec<Node>, ()> {
-    let mut i = 0 as usize;
-    let mut result: Vec<Node> = vec![];
+pub fn parse(input: Vec<char>) -> Result<Vec<Vec<Node>>, ()> {
+    let mut results: Vec<Vec<Node>> = vec![];
 
-    if let Ok(castle) = parse_castle(&input, &mut i) {
-        result.push(castle);
-    } else {
-        // pawn capture (eg: "exd5, ed")
-        if let Ok(mut pawn_capture) = parse_pawn_capture(&input, &mut i) {
-            result.append(&mut pawn_capture);
+    let mut could_be_something_else = true;
+    let mut pawn_branch_done = false;
+
+    while could_be_something_else {
+        let mut i = 0 as usize;
+        let mut result: Vec<Node> = vec![];
+        let mut pawn_move_parsed = false;
+
+        if let Ok(castle) = parse_castle(&input, &mut i) {
+            result.push(castle);
         } else {
-            if let Ok(piece) = parse_piece(&input, &mut i) {
-                result.push(piece);
+            // pawn capture (eg: "exd5, ed")
+            if !pawn_branch_done {
+                if let Ok(mut pawn_capture) =
+                    parse_pawn_capture(&input, &mut i, &mut could_be_something_else)
+                {
+                    pawn_move_parsed = true;
+                    result.append(&mut pawn_capture);
+                }
+                pawn_branch_done = true;
             }
 
-            if let Ok(captures) = parse_captures(&input, &mut i) {
-                result.push(captures);
+            if !pawn_move_parsed {
+                could_be_something_else = false;
+
+                if let Ok(piece) = parse_piece(&input, &mut i) {
+                    result.push(piece);
+                }
+
+                if let Ok(captures) = parse_captures(&input, &mut i) {
+                    result.push(captures);
+                }
+
+                let dest_tile = parse_destination(&input, &mut i)?;
+                result.push(dest_tile);
             }
 
-            let dest_tile = parse_destination(&input, &mut i)?;
-            result.push(dest_tile);
+            if let Ok(promotion) = parse_pawn_promotion(&input, &mut i) {
+                result.push(promotion);
+            }
+
+            if let Ok(ep) = parse_en_passant(&input, &mut i) {
+                result.push(ep);
+            }
         }
 
-        if let Ok(promotion) = parse_pawn_promotion(&input, &mut i) {
-            result.push(promotion);
+        if let Ok(check_or_mate) = parse_check_or_mate(&input, &mut i) {
+            result.push(check_or_mate);
         }
 
-        if let Ok(ep) = parse_en_passant(&input, &mut i) {
-            result.push(ep);
-        }
+        results.push(result);
     }
 
-    if let Ok(check_or_mate) = parse_check_or_mate(&input, &mut i) {
-        result.push(check_or_mate);
-    }
-
-    Ok(result)
+    Ok(results)
 }
 
 fn is_file(c: char) -> bool {
