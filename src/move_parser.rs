@@ -51,6 +51,8 @@ fn parse_pawn_capture(
     if is_file(input[j]) {
         if is_chess_piece(input[j]) {
             *could_be_something_else = true;
+        } else {
+            *could_be_something_else = false;
         }
 
         result.push(Node::Piece('-', input[j], '-'));
@@ -205,8 +207,8 @@ fn parse_pawn_promotion(input: &Vec<char>, i: &mut usize) -> Result<Node, ()> {
 
 fn parse_castle(input: &Vec<char>, i: &mut usize) -> Result<Node, ()> {
     let input_string: String = input.iter().collect();
-    if input_string.starts_with("o-o") {
-        if input_string.starts_with("o-o-o") {
+    if input_string.starts_with("o-o") || input_string.starts_with("O-O") {
+        if input_string.starts_with("o-o-o") || input_string.starts_with("O-O-O") {
             *i += 5;
             return Ok(Node::CastleLong);
         } else {
@@ -219,7 +221,7 @@ fn parse_castle(input: &Vec<char>, i: &mut usize) -> Result<Node, ()> {
 
 //Parses a string representing a chess move in FIDE move notation ("eg: Be4")
 // Returns a Vec<Node> representing the move. Err(()) if it could not be parsed
-//recommended pre-processing of input: strip whitespace and lowercase everything
+//recommended pre-processing of input: strip whitespace and lowercase
 pub fn parse(input: Vec<char>) -> Result<Vec<Vec<Node>>, ()> {
     let mut results: Vec<Vec<Node>> = vec![];
 
@@ -233,6 +235,7 @@ pub fn parse(input: Vec<char>) -> Result<Vec<Vec<Node>>, ()> {
 
         if let Ok(castle) = parse_castle(&input, &mut i) {
             result.push(castle);
+            could_be_something_else = false;
         } else {
             // pawn capture (eg: "exd5, ed")
             if !pawn_branch_done {
@@ -256,8 +259,12 @@ pub fn parse(input: Vec<char>) -> Result<Vec<Vec<Node>>, ()> {
                     result.push(captures);
                 }
 
-                let dest_tile = parse_destination(&input, &mut i)?;
-                result.push(dest_tile);
+                let dest_tile_res = parse_destination(&input, &mut i);
+                if dest_tile_res.is_err() {
+                    continue;
+                }
+
+                result.push(dest_tile_res.unwrap());
             }
 
             if let Ok(promotion) = parse_pawn_promotion(&input, &mut i) {
@@ -314,16 +321,17 @@ mod tests {
 
     use super::{parse, Node};
 
-    fn test_moves(input: &str) -> Result<Vec<Node>, ()> {
+    fn test_moves(input: &str) -> Result<Vec<Vec<Node>>, ()> {
         let mut input: String = input.to_string();
-
         input.retain(|c| !c.is_whitespace());
-        input = input.to_lowercase();
-
         return parse(input.chars().collect());
     }
 
     fn assert_move_vec_eq(ms: &str, mv: Vec<Node>) {
+        assert_eq!(test_moves(ms), Ok(vec![mv]));
+    }
+
+    fn assert_move_mul_vec_eq(ms: &str, mv: Vec<Vec<Node>>) {
         assert_eq!(test_moves(ms), Ok(mv));
     }
 
@@ -332,7 +340,7 @@ mod tests {
         assert_move_vec_eq(
             "Bbxb4 e.p.#",
             vec![
-                Node::Piece('b', 'b', '-'),
+                Node::Piece('B', 'b', '-'),
                 Node::Captures,
                 Node::Destination('b', '4'),
                 Node::EnPassant,
@@ -368,16 +376,31 @@ mod tests {
         //promoting
         assert_move_vec_eq(
             "e8=Q",
-            vec![Node::Destination('e', '8'), Node::PawnPromotion('q')],
+            vec![Node::Destination('e', '8'), Node::PawnPromotion('Q')],
         );
         assert_move_vec_eq(
             "edQ#",
             vec![
                 Node::Piece('-', 'e', '-'),
                 Node::Destination('d', '-'),
-                Node::PawnPromotion('q'),
+                Node::PawnPromotion('Q'),
                 Node::Checkmate,
             ],
+        );
+
+        //multiple interpretations
+        assert_move_mul_vec_eq(
+            "bc4",
+            vec![
+                vec![Node::Piece('-', 'b', '-'), Node::Destination('c', '4')],
+                vec![Node::Piece('b', '-', '-'), Node::Destination('c', '4')],
+            ],
+        );
+
+        //only one interpretation because B is capitalized (bishop move)
+        assert_move_vec_eq(
+            "Bc4",
+            vec![Node::Piece('B', '-', '-'), Node::Destination('c', '4')],
         );
     }
 }
