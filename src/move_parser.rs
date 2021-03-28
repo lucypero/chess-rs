@@ -15,7 +15,7 @@ move = [piece] [captures] tile [en_passant] [check | checkmate]
 */
 
 #[derive(Debug, PartialEq)]
-pub enum Node {
+enum Node {
     Piece(char, char, char), // (piece_type, file, rank) '-' if unspecified
     Destination(char, char), // (file, rank) '-' if unspecified. rank may be '-' if pawn capture
     Captures,
@@ -25,6 +25,94 @@ pub enum Node {
     CastleLong,
     EnPassant,
     PawnPromotion(char),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum MovePrimary {
+    PieceMove {
+        piece: (char, char, char),
+        destination: (char, char),
+        promotion: char,
+    }, // (piece_type, file, rank) '-' if unspecified
+    CastleShort,
+    CastleLong,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Move {
+    pub primary: MovePrimary, //primary, or required info
+    pub check: bool,
+    pub checkmate: bool,
+    pub en_passant: bool,
+    pub captures: bool,
+}
+
+impl Move {
+    fn construct(nodes: Vec<Node>) -> Move {
+        let mut primary = MovePrimary::CastleShort;
+
+        let mut piece = ('-', '-', '-');
+        let mut destination = ('-', '-');
+        let mut promotion = '-';
+
+        let mut check = false;
+        let mut checkmate = false;
+        let mut en_passant = false;
+        let mut captures = false;
+
+        let mut is_piece_move = false;
+
+        for node in nodes {
+            match node {
+                Node::Piece(p, f, r) => {
+                    piece = (p, f, r);
+                    is_piece_move = true;
+                }
+                Node::Destination(f, r) => {
+                    destination = (f, r);
+                    is_piece_move = true;
+                }
+                Node::Captures => {
+                    captures = true;
+                }
+                Node::Check => {
+                    check = true;
+                }
+                Node::Checkmate => {
+                    checkmate = true;
+                }
+                Node::CastleShort => {
+                    primary = MovePrimary::CastleShort;
+                }
+                Node::CastleLong => {
+                    primary = MovePrimary::CastleLong;
+                }
+                Node::EnPassant => {
+                    en_passant = true;
+                }
+                Node::PawnPromotion(p) => {
+                    promotion = p;
+                    is_piece_move = true;
+                }
+            }
+        }
+
+        if is_piece_move {
+            primary = MovePrimary::PieceMove {
+                piece,
+                destination,
+                promotion,
+            }
+        }
+
+        Move {
+            primary,
+            check,
+            checkmate,
+            en_passant,
+            captures,
+        }
+    }
 }
 
 fn is_there_tile_ahead(input: &Vec<char>, index: usize) -> bool {
@@ -221,9 +309,9 @@ fn parse_castle(input: &Vec<char>, i: &mut usize) -> Result<Node, ()> {
 
 //Parses a string representing a chess move in FIDE move notation ("eg: Be4")
 // Returns a Vec<Node> representing the move. Err(()) if it could not be parsed
-//recommended pre-processing of input: strip whitespace and lowercase
-pub fn parse(input: Vec<char>) -> Result<Vec<Vec<Node>>, ()> {
-    let mut results: Vec<Vec<Node>> = vec![];
+//recommended pre-processing of input: strip whitespace
+pub fn parse(input: Vec<char>) -> Result<Vec<Move>, ()> {
+    let mut results: Vec<Move> = vec![];
 
     let mut could_be_something_else = true;
     let mut pawn_branch_done = false;
@@ -280,7 +368,7 @@ pub fn parse(input: Vec<char>) -> Result<Vec<Vec<Node>>, ()> {
             result.push(check_or_mate);
         }
 
-        results.push(result);
+        results.push(Move::construct(result));
     }
 
     Ok(results)
@@ -319,19 +407,19 @@ fn parse_destination(input: &Vec<char>, final_i: &mut usize) -> Result<Node, ()>
 #[cfg(test)]
 mod tests {
 
-    use super::{parse, Node};
+    use super::{parse, Move, MovePrimary};
 
-    fn test_moves(input: &str) -> Result<Vec<Vec<Node>>, ()> {
+    fn test_moves(input: &str) -> Result<Vec<Move>, ()> {
         let mut input: String = input.to_string();
         input.retain(|c| !c.is_whitespace());
         return parse(input.chars().collect());
     }
 
-    fn assert_move_vec_eq(ms: &str, mv: Vec<Node>) {
+    fn assert_move_vec_eq(ms: &str, mv: Move) {
         assert_eq!(test_moves(ms), Ok(vec![mv]));
     }
 
-    fn assert_move_mul_vec_eq(ms: &str, mv: Vec<Vec<Node>>) {
+    fn assert_move_mul_vec_eq(ms: &str, mv: Vec<Move>) {
         assert_eq!(test_moves(ms), Ok(mv));
     }
 
@@ -339,68 +427,189 @@ mod tests {
     fn parsing_moves() {
         assert_move_vec_eq(
             "Bbxb4 e.p.#",
-            vec![
-                Node::Piece('B', 'b', '-'),
-                Node::Captures,
-                Node::Destination('b', '4'),
-                Node::EnPassant,
-                Node::Checkmate,
-            ],
+            Move{
+                primary: MovePrimary::PieceMove{
+                    piece: ('B', 'b', '-'), 
+                    destination: ('b', '4'),
+                    promotion: '-'
+                },
+                check: false,
+                checkmate: true,
+                en_passant: true,
+                captures: true,
+            }
+            // vec![
+            //     Node::Piece('B', 'b', '-'),
+            //     Node::Captures,
+            //     Node::Destination('b', '4'),
+            //     Node::EnPassant,
+            //     Node::Checkmate,
+            // ],
         );
 
         // castling
-        assert_move_vec_eq("O-O-O+", vec![Node::CastleLong, Node::Check]);
+        assert_move_vec_eq("O-O-O+", 
+            Move{
+                primary: MovePrimary::CastleLong,
+                check: true,
+                checkmate: false,
+                en_passant: false,
+                captures: false,
+            }
+            // vec![Node::CastleLong, Node::Check]
+            );
 
         // pawn move
-        assert_move_vec_eq("e4", vec![Node::Destination('e', '4')]);
+        assert_move_vec_eq("e4", 
+
+            Move{
+                primary: MovePrimary::PieceMove{
+                    piece: ('-', '-', '-'), 
+                    destination: ('e', '4'),
+                    promotion: '-'
+                },
+                check: false,
+                checkmate: false,
+                en_passant: false,
+                captures: false,
+            }
+            // vec![Node::Destination('e', '4')]
+            );
 
         //pawn captures
         assert_move_vec_eq(
             "exd5",
-            vec![
-                Node::Piece('-', 'e', '-'),
-                Node::Captures,
-                Node::Destination('d', '5'),
-            ],
+            Move{
+                primary: MovePrimary::PieceMove{
+                    piece: ('-', 'e', '-'), 
+                    destination: ('d', '5'),
+                    promotion: '-'
+                },
+                check: false,
+                checkmate: false,
+                en_passant: false,
+                captures: true,
+            }
+            // vec![
+            //     Node::Piece('-', 'e', '-'),
+            //     Node::Captures,
+            //     Node::Destination('d', '5'),
+            // ],
         );
 
         assert_move_vec_eq(
             "ed#",
-            vec![
-                Node::Piece('-', 'e', '-'),
-                Node::Destination('d', '-'),
-                Node::Checkmate,
-            ],
+            Move{
+                primary: MovePrimary::PieceMove{
+                    piece: ('-', 'e', '-'), 
+                    destination: ('d', '-'),
+                    promotion: '-'
+                },
+                check: false,
+                checkmate: true,
+                en_passant: false,
+                captures: false,
+            }
+            // vec![
+            //     Node::Piece('-', 'e', '-'),
+            //     Node::Destination('d', '-'),
+            //     Node::Checkmate,
+            // ],
         );
 
         //promoting
         assert_move_vec_eq(
             "e8=Q",
-            vec![Node::Destination('e', '8'), Node::PawnPromotion('Q')],
+
+            Move{
+                primary: MovePrimary::PieceMove{
+                    piece: ('-', '-', '-'), 
+                    destination: ('e', '8'),
+                    promotion: 'Q'
+                },
+                check: false,
+                checkmate: false,
+                en_passant: false,
+                captures: false,
+            }
+
+            // vec![Node::Destination('e', '8'), Node::PawnPromotion('Q')],
         );
+
         assert_move_vec_eq(
             "edQ#",
-            vec![
-                Node::Piece('-', 'e', '-'),
-                Node::Destination('d', '-'),
-                Node::PawnPromotion('Q'),
-                Node::Checkmate,
-            ],
+
+            Move{
+                primary: MovePrimary::PieceMove{
+                    piece: ('-', 'e', '-'), 
+                    destination: ('d', '-'),
+                    promotion: 'Q'
+                },
+                check: false,
+                checkmate: true,
+                en_passant: false,
+                captures: false,
+            }
+
+            // vec![
+            //     Node::Piece('-', 'e', '-'),
+            //     Node::Destination('d', '-'),
+            //     Node::PawnPromotion('Q'),
+            //     Node::Checkmate,
+            // ],
         );
 
         //multiple interpretations
         assert_move_mul_vec_eq(
             "bc4",
             vec![
-                vec![Node::Piece('-', 'b', '-'), Node::Destination('c', '4')],
-                vec![Node::Piece('b', '-', '-'), Node::Destination('c', '4')],
-            ],
+            Move{
+                primary: MovePrimary::PieceMove{
+                    piece: ('-', 'b', '-'), 
+                    destination: ('c', '4'),
+                    promotion: '-'
+                },
+                check: false,
+                checkmate: false,
+                en_passant: false,
+                captures: false,
+            },
+            Move{
+                primary: MovePrimary::PieceMove{
+                    piece: ('b', '-', '-'), 
+                    destination: ('c', '4'),
+                    promotion: '-'
+                },
+                check: false,
+                checkmate: false,
+                en_passant: false,
+                captures: false,
+            }
+
+            ]
+            // vec![
+            //     vec![Node::Piece('-', 'b', '-'), Node::Destination('c', '4')],
+            //     vec![Node::Piece('b', '-', '-'), Node::Destination('c', '4')],
+            // ],
         );
 
         //only one interpretation because B is capitalized (bishop move)
         assert_move_vec_eq(
             "Bc4",
-            vec![Node::Piece('B', '-', '-'), Node::Destination('c', '4')],
+
+            Move{
+                primary: MovePrimary::PieceMove{
+                    piece: ('B', '-', '-'), 
+                    destination: ('c', '4'),
+                    promotion: '-'
+                },
+                check: false,
+                checkmate: false,
+                en_passant: false,
+                captures: false,
+            }
+
+            // vec![Node::Piece('B', '-', '-'), Node::Destination('c', '4')],
         );
     }
 }
