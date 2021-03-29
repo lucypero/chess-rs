@@ -557,8 +557,10 @@ impl FromStr for Tile {
 #[derive(Debug, Copy, Clone)]
 pub enum Move {
     PieceMove {
+        piece: ChessPiece,
         tile_from: Tile,
         tile_to: Tile,
+        is_en_passant: bool,
     },
     PieceMoveWithPromotion {
         tile_from: Tile,
@@ -573,8 +575,12 @@ impl fmt::Display for Move {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Move::PieceMove { tile_from, tile_to } => {
-                write!(f, "Move: {} to {}", tile_from, tile_to)
+            Move::PieceMove { piece, tile_from, tile_to , is_en_passant } => {
+                let mut en_passant_str = "";
+                if *is_en_passant {
+                    en_passant_str = ", takes en passant";
+                }
+                write!(f, "Move: {} in {} to {}{}", piece, tile_from, tile_to, en_passant_str)
             }
             Move::PieceMoveWithPromotion {
                 tile_from,
@@ -583,7 +589,7 @@ impl fmt::Display for Move {
             } => {
                 write!(
                     f,
-                    "Move: {} to {}, promoted to {}",
+                    "Move: Pawn in {} to {}, promoted to {}",
                     tile_from, tile_to, promotion
                 )
             }
@@ -610,6 +616,10 @@ impl GameState {
         }
     }
 
+    fn get_last_move(&self) -> Option<Move> {
+        self.moves.last().copied()
+    }
+
     fn move_count(&self) -> u32 {
         return self.moves.len() as u32;
     }
@@ -633,41 +643,31 @@ impl GameState {
         //performs all move validation here. If it is legal,
         //    the move is added to self.moves
 
-        fn validate_piece_move(
-            tile_from: Tile,
-            tile_to: Tile,
-            board: &Board,
-        ) -> Result<(), String> {
-            // 1: Is the player grabbing a piece?
-            let piece = board
-                .get_piece(tile_from)
-                .ok_or("there is nothing at that tile!".to_string())?;
-
-            // 2: Is the Player grabbing their own piece?
-            if piece.0 != board.whose_turn {
-                return Err("hey! you can only grab your own pieces!".to_string());
-            }
-
-            // 3: Is the move legal according to how the piece moves?
-            if !is_piece_move_legal(&piece, tile_from, tile_to, &board) {
-                return Err("That piece does not move that way.".to_string());
-            }
-
-            Ok(())
-        }
 
         let board = self.get_board();
+        let mut is_en_passant = false;
 
         match chess_move {
-            Move::PieceMove { tile_from, tile_to } => {
-                validate_piece_move(tile_from, tile_to, &board)?;
-            }
-            Move::PieceMoveWithPromotion {
-                tile_from,
-                tile_to,
-                promotion: _,
-            } => {
-                validate_piece_move(tile_from, tile_to, &board)?;
+            Move::PieceMove { piece: _, tile_from, tile_to , is_en_passant: _} | 
+            Move::PieceMoveWithPromotion {tile_from, tile_to, promotion: _} => {
+
+                // 1: Is the player grabbing a piece?
+                let piece = board
+                    .get_piece(tile_from)
+                    .ok_or("there is nothing at that tile!".to_string())?;
+
+                // 2: Is the Player grabbing their own piece?
+                if piece.0 != board.whose_turn {
+                    return Err("hey! you can only grab your own pieces!".to_string());
+                }
+
+                // pass last move to is_piece_move_legal to check for en passant if necessary
+                let last_move = self.moves.last().copied();
+
+                // 3: Is the move legal according to how the piece moves?
+                if !is_piece_move_legal(&piece, tile_from, tile_to, last_move, &board, &mut is_en_passant) {
+                    return Err("That piece does not move that way.".to_string());
+                }
             }
             Move::CastleShort => {
                 // TODO(lucypero): castling
@@ -842,7 +842,7 @@ mod move_processor {
 
         pieces.retain(move |&p| {
             let tile_from = Tile::try_from(p).unwrap();
-            is_piece_move_legal(&teamed_piece, tile_from, tile_to, board)
+            is_piece_move_legal(&teamed_piece, tile_from, tile_to, None, board, &mut false)
         });
 
         //2. if more than 1, ask to specify
@@ -853,13 +853,11 @@ mod move_processor {
             Err("no piece of that type can make that move".to_string())
         } else {
             let tile_from = Tile::try_from(pieces[0]).unwrap();
-            Ok(Move::PieceMove { tile_from, tile_to })
+            Ok(Move::PieceMove { piece, tile_from, tile_to, is_en_passant: false})
         }
     }
 
-    fn get_pawn_capture(the_move: move_parser::Move, board: &Board) -> Result<Move, String> {
-        // TODO(lucypero): en passant
-
+    fn get_pawn_capture(the_move: move_parser::Move, last_move: Option<Move>, board: &Board) -> Result<Move, String> {
         let mut file_from = '-';
         let mut destination = ('-', '-');
         let mut promotion = '-';
@@ -887,44 +885,34 @@ mod move_processor {
 
         let file_from = file_to_coord(file_from).unwrap();
 
+        let mut tile_from : Option<Tile> = None;
+        let mut tile_to : Option<Tile> = None;
+
+        let mut is_en_passant = false;
+
         //1. get all friendly pawns in file the_move.primary.piece.1
-        let pawns: Vec<Coord> = board
-            .find_pieces_in_file(board.whose_turn, ChessPiece::Pawn, file_from)
-            .iter()
-            //2. filter pawns by if they can take a piece on file the_move.primary.destination.2, or on tile if it is specified
-            .filter(move |&p| {
-                //rank not specified
-                if rank.is_err() {
-                    let coord_target = Coord {
-                        x: file,
-                        y: p.y + 1 * team_factor,
-                    };
-                    let piece_dest = board.get_piece(Tile::try_from(coord_target).unwrap());
+        let mut pawns: Vec<Coord> =
+            board.find_pieces_in_file(board.whose_turn, ChessPiece::Pawn, file_from);
+        //2. filter pawns by if they can take a piece on file the_move.primary.destination.2, or on tile if it is specified
+        pawns.retain(|&p| {
 
-                    piece_dest.is_some()
-                        && piece_dest.unwrap().0 == board.whose_turn.the_other_one()
+            let coord_pawn_target = Coord {
+                x: file,
+                y: p.y + 1 * team_factor,
+            };
+
+            // if the rank is specified, test if it is the same as coord_pawn_target
+            if rank.is_ok() {
+                if (Coord { x: file, y: rank.unwrap()}) != coord_pawn_target {
+                    return false;
                 }
-                // rank specified, test for specific tile
-                else {
-                    let coord_target = Coord {
-                        x: file,
-                        y: rank.unwrap(),
-                    };
+            }
 
-                    //check if pawn can take coord_target
-                    let coord_pawn_target = Coord {
-                        x: file,
-                        y: p.y + 1 * team_factor,
-                    };
-                    let piece_dest = board.get_piece(Tile::try_from(coord_target).unwrap());
+            tile_from = Some(Tile::try_from(p).unwrap());
+            tile_to = Some(Tile::try_from(coord_pawn_target).unwrap());
 
-                    coord_target == coord_pawn_target
-                        && piece_dest.is_some()
-                        && piece_dest.unwrap().0 == board.whose_turn.the_other_one()
-                }
-            })
-            .cloned()
-            .collect();
+            is_piece_move_legal(&TeamedChessPiece(board.whose_turn, ChessPiece::Pawn), tile_from.unwrap(), tile_to.unwrap(), last_move, board, &mut is_en_passant)
+        });
 
         //3. if more than one pawn can take, return error "need to specify tile to take"
         //   if only one pawn can take, return the move
@@ -933,15 +921,13 @@ mod move_processor {
         } else if pawns.len() < 1 {
             Err("no pawn can make that move".to_string())
         } else {
-            let coord_from = pawns[0];
-            let tile_from = Tile::try_from(coord_from).unwrap();
-            let tile_to = Tile::try_from(Coord {
-                x: file,
-                y: coord_from.y + 1 * team_factor,
-            })
-            .unwrap();
+
+            let tile_from = tile_from.unwrap();
+            let tile_to = tile_to.unwrap();
 
             if promotion != '-' {
+
+
                 let promoted_piece_type = get_piece(promotion).unwrap();
                 Ok(Move::PieceMoveWithPromotion {
                     tile_from,
@@ -949,7 +935,7 @@ mod move_processor {
                     promotion: promoted_piece_type,
                 })
             } else {
-                Ok(Move::PieceMove { tile_from, tile_to })
+                Ok(Move::PieceMove { piece: ChessPiece::Pawn, tile_from, tile_to, is_en_passant})
             }
         }
     }
@@ -985,8 +971,10 @@ mod move_processor {
                 });
             } else {
                 return Ok(Move::PieceMove {
+                    piece: ChessPiece::Pawn,
                     tile_from: Tile::try_from(coord_from.unwrap()).unwrap(),
                     tile_to: Tile::try_from(coord_dest).unwrap(),
+                    is_en_passant: false
                 });
             }
         }
@@ -994,6 +982,8 @@ mod move_processor {
         Err("this will never be reached".to_string())
     }
 
+    // This uses our move parser in move_parser::parse() then processes the output
+    //  It finds the right piece to move, and the destination tile, and constructs a Move
     pub fn parse_move(mut move_input: String, game: &GameState) -> Result<Move, String> {
         move_input.retain(|c| !c.is_whitespace());
 
@@ -1008,7 +998,6 @@ mod move_processor {
         //Processing parser output
         let board = game.get_board();
 
-        println!("{:?}", moves);
         let mut the_move: Option<Move> = None;
 
         let mut last_error: String = "Can't parse".to_string();
@@ -1021,6 +1010,10 @@ mod move_processor {
                     promotion: _,
                 } => {
                     let piece_move;
+                    // TODO(lucypero): try if u can generalize every case
+                    //    and handle pawn moves and captures also in get_non_pawn_move
+                    //    everything would have to go through is_piece_move_legal and
+                    //    it would be a lot less code
 
                     //pawn move (no capture)
                     if piece == ('-', '-', '-') {
@@ -1028,7 +1021,7 @@ mod move_processor {
                     }
                     // pawn capture
                     else if piece.0 == '-' {
-                        piece_move = get_pawn_capture(move_i, &board);
+                        piece_move = get_pawn_capture(move_i, game.get_last_move(), &board);
                     }
                     // non-pawn move
                     else {
@@ -1062,16 +1055,19 @@ mod move_processor {
     }
 }
 
-// This uses our move parser in move_parser::parse() then processes the output
-//  It finds the right piece to move, and the destination tile, and constructs a Move
 
 // Part of move validation. Validates chess piece move logic
 fn is_piece_move_legal(
     piece: &TeamedChessPiece,
     tile_from: Tile,
     tile_to: Tile,
+    last_move: Option<Move>,
     board: &Board,
+    is_en_passant: &mut bool
 ) -> bool {
+
+    *is_en_passant = false;
+
     let tile_from_coord = Coord::from(tile_from);
     let tile_to_coord = Coord::from(tile_to);
 
@@ -1134,11 +1130,27 @@ fn is_piece_move_legal(
                     if *team != target_piece.0 {
                         return true;
                     }
+                } 
+                //en passant
+                else if (board.whose_turn == ChessTeam::Black && tile_to_coord.y == 2) ||
+                        (board.whose_turn == ChessTeam::White && tile_to_coord.y == 5) {
+
+                    // get last move
+                    if let Some(Move::PieceMove{piece: ChessPiece::Pawn, tile_from: last_tile_from, tile_to: last_tile_to, is_en_passant: _}) = last_move {
+
+                        let last_tile_from = Coord::from(last_tile_from);
+                        let last_tile_to = Coord::from(last_tile_to);
+
+                        if (board.whose_turn == ChessTeam::Black && last_tile_from == Coord{x:tile_to_coord.x, y:1} && last_tile_to == Coord{x:tile_to_coord.x, y:3}) ||
+                            (board.whose_turn == ChessTeam::White && last_tile_from == Coord{x:tile_to_coord.x, y:6} && last_tile_to == Coord{x:tile_to_coord.x, y:4}) {
+
+                                //this is en pasant, return true
+                                *is_en_passant = true;
+                                return true;
+                        }
+                    }
                 }
             }
-
-            // TODO(lucypero): en passant
-            //en passant rule (leave this for last.. this one will be complicated)
 
             false
         }
@@ -1426,17 +1438,25 @@ impl Board {
     }
 
     fn apply_move(&mut self, chess_move: &Move) {
-        // TODO(lucypero): error checking (if there is a piece there, if it is a legal move, etc)
-
-        //after all the checking, perform the chess_move
-        //get the piece at tile_from
-
-        //move the piece from tile_from and put it on tile_to
-
         match chess_move {
-            Move::PieceMove { tile_from, tile_to } => {
+            Move::PieceMove { piece: _, tile_from, tile_to, is_en_passant } => {
                 let piece = self.piece_locations.remove(&tile_from).unwrap();
                 self.piece_locations.insert(*tile_to, piece);
+
+                //must remove captured pawn if en_passant
+                if *is_en_passant {
+
+                    let mut captured_pawn_coord = Coord::from(*tile_to);
+                    match self.whose_turn {
+                        ChessTeam::Black => {
+                            captured_pawn_coord.y += 1;
+                        }
+                        ChessTeam::White => {
+                            captured_pawn_coord.y -= 1;
+                        }
+                    }
+                    self.piece_locations.remove(&Tile::try_from(captured_pawn_coord).unwrap());
+                }
             }
             Move::PieceMoveWithPromotion {
                 tile_from,
@@ -1485,8 +1505,6 @@ impl Board {
             print!("is_path clear: is piece at {}? ", tile_iter);
 
             let piece_in_path_res = self.get_piece(tile_iter);
-
-            println!("{}", piece_in_path_res.is_some());
 
             if piece_in_path_res.is_some() {
                 return false;
@@ -1620,7 +1638,6 @@ fn main() {
             }
 
             let the_move = parse_res.unwrap();
-            println!("the move: {:?}", the_move);
 
             // old way of parsing moves "E2E4" (it's bad)
             {
