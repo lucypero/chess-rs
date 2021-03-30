@@ -605,8 +605,8 @@ impl fmt::Display for Move {
 }
 
 pub struct GameState {
-    _is_running: bool,
     moves: Vec<Move>,
+    starting_board: Board,
 }
 
 enum GameEndState {
@@ -618,8 +618,15 @@ enum GameEndState {
 impl GameState {
     fn init() -> GameState {
         GameState {
-            _is_running: true,
             moves: vec![],
+            starting_board: Board::start_position(),
+        }
+    }
+
+    fn init_from_custom_position(board:Board) -> GameState {
+        GameState {
+            moves: vec![],
+            starting_board: board,
         }
     }
 
@@ -667,7 +674,7 @@ impl GameState {
         //Start with the starting board position then you start mutating it with each
         //  move until you get the current position
 
-        let mut board = Board::start_position();
+        let mut board = self.starting_board.clone();
         for chess_move in self.moves.iter() {
             board.apply_move(chess_move.clone());
         }
@@ -688,8 +695,35 @@ impl GameState {
         let last_move = self.moves.last().copied();
 
         match chess_move {
-            Move::PieceMove { piece: _, tile_from, tile_to , is_en_passant: _} | 
-            Move::PieceMoveWithPromotion {tile_from, tile_to, promotion: _} => {
+            Move::PieceMove { piece: piece_type, tile_from, tile_to , is_en_passant: _} => {
+                // 1: Is the player grabbing a piece?
+                let piece = board
+                    .get_piece(tile_from)
+                    .ok_or("there is nothing at that tile!".to_string())?;
+
+                // 2: Is the Player grabbing their own piece?
+                if piece.0 != board.whose_turn {
+                    return Err("hey! you can only grab your own pieces!".to_string());
+                }
+
+                // 3: Is the move legal according to how the piece moves?
+                if !is_piece_move_legal(piece, tile_from, tile_to, last_move, &board, &mut is_en_passant) {
+                    return Err("That piece does not move that way.".to_string());
+                }
+
+                // promotion check: error if it is a pawn move that reached the back rank_spec
+                let tile_to_coord = Coord::from(tile_to);
+
+                let back_rank = match self.whose_turn() {
+                    ChessTeam::Black => 0,
+                    ChessTeam::White => 7
+                };
+
+                if piece_type == ChessPiece::Pawn && tile_to_coord.y == back_rank {
+                    return Err("You must specify the promotion piece. e.g: e8=q".to_string());
+                }
+            }
+            Move::PieceMoveWithPromotion {tile_from, tile_to, promotion} => {
 
                 // 1: Is the player grabbing a piece?
                 let piece = board
@@ -701,47 +735,75 @@ impl GameState {
                     return Err("hey! you can only grab your own pieces!".to_string());
                 }
 
-
                 // 3: Is the move legal according to how the piece moves?
                 if !is_piece_move_legal(piece, tile_from, tile_to, last_move, &board, &mut is_en_passant) {
                     return Err("That piece does not move that way.".to_string());
+                }
+
+
+                //rank has to be the back rank
+                let tile_to_coord = Coord::from(tile_to);
+
+                let back_rank = match self.whose_turn() {
+                    ChessTeam::Black => 0,
+                    ChessTeam::White => 7
+                };
+
+                if tile_to_coord.y != back_rank {
+                    return Err("The pawn has to reach the back rank to promote.".to_string());
+                }
+
+                // promotion can't be a pawn or a king
+                if promotion == ChessPiece::Pawn || promotion == ChessPiece::King {
+                    return Err("You can't promote to a pawn or a king... try another piece".to_string());
                 }
             }
             Move::CastleShort | Move::CastleLong => {
                 // TODO(lucypero): castling
                 //1. check if rook and king have not moved
 
-                let rook_tile = match self.whose_turn() {
+                // let rook_tile = match self.whose_turn() {
+                //     ChessTeam::Black => {
+                //         if chess_move == Move::CastleShort {Tile::H8} else {Tile::A8}
+                //     },
+                //     ChessTeam::White => {
+                //         if chess_move == Move::CastleShort {Tile::H1} else {Tile::A1}
+                //     }
+                // };
+
+                // let king_tile = match self.whose_turn() {
+                //     ChessTeam::Black => Tile::E8,
+                //     ChessTeam::White => Tile::E1
+                // };
+
+//                 for (pos, the_move) in self.moves.iter().enumerate() {
+//                     match the_move {
+//                         Move::PieceMove { piece: _, tile_from, tile_to, is_en_passant: _ } | 
+//                         Move::PieceMoveWithPromotion { tile_from, tile_to, promotion: _ } => {
+//                             if *tile_from == rook_tile || *tile_from == king_tile || *tile_to == rook_tile || *tile_to == king_tile {
+//                                 return Err("Can't castle. The rook or the king have already moved".to_string());
+//                             }
+//                         }
+//                         _ => 
+//                     }
+//                 }
+
+                //1. check if the player has castling rights
+                let err_str = Err("Can't castle. The player has no castling rights".to_string());
+
+                match self.whose_turn() {
                     ChessTeam::Black => {
-                        if chess_move == Move::CastleShort {Tile::H8} else {Tile::A8}
-                    },
+                        if (chess_move == Move::CastleShort && !board.castling_rights.2) ||        
+                            (chess_move == Move::CastleLong && !board.castling_rights.3) {
+                            return err_str;
+                        }
+                    }
                     ChessTeam::White => {
-                        if chess_move == Move::CastleShort {Tile::H1} else {Tile::A1}
-                    }
-                };
-
-                let king_tile = match self.whose_turn() {
-                    ChessTeam::Black => Tile::E8,
-                    ChessTeam::White => Tile::E1
-                };
-
-                for (pos, the_move) in self.moves.iter().enumerate() {
-                    match the_move {
-                        Move::PieceMove { piece: _, tile_from, tile_to, is_en_passant: _ } | 
-                        Move::PieceMoveWithPromotion { tile_from, tile_to, promotion: _ } => {
-                            if *tile_from == rook_tile || *tile_from == king_tile || *tile_to == rook_tile || *tile_to == king_tile {
-                                return Err("Can't castle. The rook or the king have already moved".to_string());
-                            }
-                        }
-                        Move::CastleShort | Move::CastleLong => {
-                            // if the team in question has castled
-                            if (self.whose_turn() == ChessTeam::Black && pos % 2 == 1) ||
-                                (self.whose_turn() == ChessTeam::White && pos % 2 == 0) {
-                                    return Err("Can't castle. The rook or the king have already moved".to_string());
-                            }
+                        if (chess_move == Move::CastleShort && !board.castling_rights.0) ||        
+                            (chess_move == Move::CastleLong && !board.castling_rights.1) {
+                            return err_str;
                         }
                     }
-
                 }
 
                 //2. check if tiles in between are free
@@ -822,11 +884,7 @@ impl GameState {
 
     // whose turn is it?
     fn whose_turn(&self) -> ChessTeam {
-        if self.moves.len() % 2 == 0 {
-            ChessTeam::White
-        } else {
-            ChessTeam::Black
-        }
+        self.get_board().whose_turn
     }
 }
 
@@ -1393,6 +1451,7 @@ fn is_piece_move_legal(
 struct Board {
     pub whose_turn: ChessTeam,
     piece_locations: HashMap<Tile, TeamedChessPiece>,
+    castling_rights: (bool,bool,bool,bool) // (white short castle, white long castle, black short castle, black long castle)
 }
 
 impl Board {
@@ -1534,6 +1593,7 @@ impl Board {
         Board {
             whose_turn: ChessTeam::White,
             piece_locations,
+            castling_rights: (true, true, true, true)
         }
     }
 
@@ -1760,7 +1820,7 @@ impl Board {
 
     fn apply_move(&mut self, chess_move: Move) {
         match chess_move {
-            Move::PieceMove { piece: _, tile_from, tile_to, is_en_passant } => {
+            Move::PieceMove { piece: piece_type, tile_from, tile_to, is_en_passant } => {
                 let piece = self.piece_locations.remove(&tile_from).unwrap();
                 self.piece_locations.insert(tile_to, piece);
 
@@ -1777,6 +1837,42 @@ impl Board {
                         }
                     }
                     self.piece_locations.remove(&Tile::try_from(captured_pawn_coord).unwrap());
+                }
+
+                //update castling rights if necessary
+                if piece_type == ChessPiece::Rook {
+                    match self.whose_turn {
+                        ChessTeam::Black => {
+                            if tile_from == Tile::A8 {
+                                self.castling_rights.3 = false;
+                            }
+                            else if tile_from == Tile::H8 {
+                                self.castling_rights.2 = false;
+                            }
+                        }
+                        ChessTeam::White => {
+                            if tile_from == Tile::A1 {
+                                self.castling_rights.1 = false;
+                            }
+                            else if tile_from == Tile::H1 {
+                                self.castling_rights.0 = false;
+                            }
+
+                        }
+                    }
+                }
+
+                if piece_type == ChessPiece::King {
+                    match self.whose_turn {
+                        ChessTeam::Black => {
+                            self.castling_rights.2 = false;
+                            self.castling_rights.3 = false;
+                        }
+                        ChessTeam::White => {
+                            self.castling_rights.0 = false;
+                            self.castling_rights.1 = false;
+                        }
+                    }
                 }
             }
             Move::PieceMoveWithPromotion {
@@ -1796,12 +1892,18 @@ impl Board {
                         self.piece_locations.remove(&Tile::E8);
                         self.piece_locations.insert(Tile::F8, TeamedChessPiece(self.whose_turn, ChessPiece::Rook));
                         self.piece_locations.insert(Tile::G8, TeamedChessPiece(self.whose_turn, ChessPiece::King));
+
+                        self.castling_rights.2 = false;
+                        self.castling_rights.3 = false;
                     }
                     ChessTeam::White => {
                         self.piece_locations.remove(&Tile::H1);
                         self.piece_locations.remove(&Tile::E1);
                         self.piece_locations.insert(Tile::F1, TeamedChessPiece(self.whose_turn, ChessPiece::Rook));
                         self.piece_locations.insert(Tile::G1, TeamedChessPiece(self.whose_turn, ChessPiece::King));
+
+                        self.castling_rights.0 = false;
+                        self.castling_rights.1 = false;
                     }
                 }
             }
@@ -1812,12 +1914,18 @@ impl Board {
                         self.piece_locations.remove(&Tile::E8);
                         self.piece_locations.insert(Tile::D8, TeamedChessPiece(self.whose_turn, ChessPiece::Rook));
                         self.piece_locations.insert(Tile::C8, TeamedChessPiece(self.whose_turn, ChessPiece::King));
+
+                        self.castling_rights.2 = false;
+                        self.castling_rights.3 = false;
                     }
                     ChessTeam::White => {
                         self.piece_locations.remove(&Tile::A1);
                         self.piece_locations.remove(&Tile::E1);
                         self.piece_locations.insert(Tile::D1, TeamedChessPiece(self.whose_turn, ChessPiece::Rook));
                         self.piece_locations.insert(Tile::C1, TeamedChessPiece(self.whose_turn, ChessPiece::King));
+
+                        self.castling_rights.0 = false;
+                        self.castling_rights.1 = false;
                     }
                 }
             }
@@ -1915,6 +2023,29 @@ impl Board {
     }
 }
 
+fn make_custom_start_board() -> Board {
+
+    let mut piece_locations = HashMap::new();
+
+    piece_locations.insert(Tile::A1, TeamedChessPiece(ChessTeam::White, ChessPiece::King));
+    piece_locations.insert(Tile::A8, TeamedChessPiece(ChessTeam::Black, ChessPiece::King));
+
+    piece_locations.insert(Tile::D7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+    piece_locations.insert(Tile::E7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+
+    piece_locations.insert(Tile::D2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
+    piece_locations.insert(Tile::E2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
+
+    piece_locations.insert(Tile::H3, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+
+
+    Board {
+        whose_turn: ChessTeam::White,
+        piece_locations,
+        castling_rights: (false,false,false,false)
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     println!("{:?}", args);
@@ -1923,9 +2054,10 @@ fn main() {
     println!("Welcome to chess! Type !help for all the commands");
 
     //initializing game state
-    let mut game = GameState::init();
+    let mut game = GameState::init_from_custom_position(make_custom_start_board());
     game.get_board().print();
-    print!("\n\nWhite to move. What's your move? ...\n");
+
+    print!("\n\n{} to move. What's your move? ...\n", game.whose_turn());
 
     let stdin = io::stdin();
     for line_res in stdin.lock().lines() {
