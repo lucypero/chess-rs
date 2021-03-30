@@ -3,7 +3,6 @@ use ansi_term::Style;
 use num_enum::TryFromPrimitive;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::env;
 use std::fmt;
 use std::io::{self, BufRead};
 use std::ops;
@@ -2023,38 +2022,9 @@ impl Board {
     }
 }
 
-fn make_custom_start_board() -> Board {
+// this is basically the terminal interface of the game
+fn game_loop(game: &mut GameState) {
 
-    let mut piece_locations = HashMap::new();
-
-    piece_locations.insert(Tile::A1, TeamedChessPiece(ChessTeam::White, ChessPiece::King));
-    piece_locations.insert(Tile::A8, TeamedChessPiece(ChessTeam::Black, ChessPiece::King));
-
-    piece_locations.insert(Tile::D7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
-    piece_locations.insert(Tile::E7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
-
-    piece_locations.insert(Tile::D2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
-    piece_locations.insert(Tile::E2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
-
-    piece_locations.insert(Tile::H3, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
-
-
-    Board {
-        whose_turn: ChessTeam::White,
-        piece_locations,
-        castling_rights: (false,false,false,false)
-    }
-}
-
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
-
-    //read move from stdin, you write the move and press enter
-    println!("Welcome to chess! Type !help for all the commands");
-
-    //initializing game state
-    let mut game = GameState::init_from_custom_position(make_custom_start_board());
     game.get_board().print();
 
     print!("\n\n{} to move. What's your move? ...\n", game.whose_turn());
@@ -2126,5 +2096,46 @@ fn main() {
                 }
             }
         }
+    }
+}
+
+fn main() {
+
+    //read move from stdin, you write the move and press enter
+    println!("Welcome to chess! Type !help for all the commands");
+
+    //initializing game state
+    let mut game = GameState::init();
+    game_loop(&mut game);
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    fn make_pawn_promotion_test_board() -> Board {
+        let mut piece_locations = HashMap::new();
+
+        piece_locations.insert(Tile::A1, TeamedChessPiece(ChessTeam::White, ChessPiece::King));
+        piece_locations.insert(Tile::A8, TeamedChessPiece(ChessTeam::Black, ChessPiece::King));
+        piece_locations.insert(Tile::D7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+        piece_locations.insert(Tile::E7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+        piece_locations.insert(Tile::D2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
+        piece_locations.insert(Tile::E2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
+        piece_locations.insert(Tile::H3, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+
+        Board {
+            whose_turn: ChessTeam::White,
+            piece_locations,
+            castling_rights: (false,false,false,false)
+        }
+    }
+
+
+    #[test]
+    fn pawn_promotion_position() {
+        let mut game = GameState::init_from_custom_position(make_pawn_promotion_test_board());
+        game_loop(&mut game);
     }
 }
