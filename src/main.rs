@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::io::{self, BufRead};
 use std::ops;
-use std::str::FromStr;
+use std::env;
 
 mod move_parser;
 
@@ -39,12 +39,7 @@ impl fmt::Display for ChessTeam {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ChessPiece {
-    Pawn,
-    Rook,
-    Knight,
-    Bishop,
-    Queen,
-    King,
+    Pawn, Rook, Knight, Bishop, Queen, King
 }
 
 impl fmt::Display for ChessPiece {
@@ -59,6 +54,50 @@ impl fmt::Display for ChessPiece {
         };
 
         write!(f, "{}", piece)
+    }
+}
+
+
+// NOTE(lucypero): Most of these will never happen because most of these cases 
+//   are caught by MoveParseError (assuming we use chess move notation as input)
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum MoveError {
+    // there is nothing at that tile!
+    TileFromIsEmpty,
+    // hey! you can only grab your own pieces!
+    TileFromIsEnemyPiece,
+    //That piece does not move that way.
+    PieceDoesNotMoveLikeThat,
+    //You must specify the promotion piece. e.g: e8=q
+    PromotionPieceNotSpecified,
+    //The pawn has to reach the back rank to promote.
+    PromotionNotLegal,
+    //You can't promote to a pawn or a king... try another piece
+    PromotionWrongPiece,
+    //Can't castle. The player has no castling rights
+    CastlingNoRights,
+    //Can't castle. The tiles in between are not free 
+    CastlingTilesInBetweenNotFree,
+    //Can't castle while in or through check.
+    CastlingThroughCheck,
+    //Your King would be in check. King can't be in check.
+    InCheck,
+}
+
+impl fmt::Display for MoveError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MoveError::TileFromIsEmpty => write!(f, "{}", "there is nothing at that tile!"),
+            MoveError::TileFromIsEnemyPiece => write!(f, "{}", "hey! you can only grab your own pieces!"),
+            MoveError::PieceDoesNotMoveLikeThat => write!(f, "{}", "That piece does not move that way."),
+            MoveError::PromotionPieceNotSpecified => write!(f, "{}", "You must specify the promotion piece. e.g: e8=q"),
+            MoveError::PromotionNotLegal => write!(f, "{}", "The pawn has to reach the back rank to promote."),
+            MoveError::PromotionWrongPiece => write!(f, "{}", "You can't promote to a pawn or a king... try another piece"),
+            MoveError::CastlingNoRights => write!(f, "{}", "Can't castle. The player has no castling rights"),
+            MoveError::CastlingTilesInBetweenNotFree => write!(f, "{}", "Can't castle. The tiles in between are not free "),
+            MoveError::CastlingThroughCheck => write!(f, "{}", "Can't castle while in or through check."),
+            MoveError::InCheck => write!(f, "{}", "Your King would be in check. King can't be in check."),
+        }
     }
 }
 
@@ -250,140 +289,32 @@ struct TeamedChessPiece(ChessTeam, ChessPiece);
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive, Hash, Copy, Clone)]
 #[repr(u32)]
 pub enum Tile {
-    A8,
-    B8,
-    C8,
-    D8,
-    E8,
-    F8,
-    G8,
-    H8,
-    A7,
-    B7,
-    C7,
-    D7,
-    E7,
-    F7,
-    G7,
-    H7,
-    A6,
-    B6,
-    C6,
-    D6,
-    E6,
-    F6,
-    G6,
-    H6,
-    A5,
-    B5,
-    C5,
-    D5,
-    E5,
-    F5,
-    G5,
-    H5,
-    A4,
-    B4,
-    C4,
-    D4,
-    E4,
-    F4,
-    G4,
-    H4,
-    A3,
-    B3,
-    C3,
-    D3,
-    E3,
-    F3,
-    G3,
-    H3,
-    A2,
-    B2,
-    C2,
-    D2,
-    E2,
-    F2,
-    G2,
-    H2,
-    A1,
-    B1,
-    C1,
-    D1,
-    E1,
-    F1,
-    G1,
-    H1,
+    A8, B8, C8, D8, E8, F8, G8, H8, A7, B7, C7, D7, E7, F7, G7, H7,
+    A6, B6, C6, D6, E6, F6, G6, H6, A5, B5, C5, D5, E5, F5, G5, H5,
+    A4, B4, C4, D4, E4, F4, G4, H4, A3, B3, C3, D3, E3, F3, G3, H3,
+    A2, B2, C2, D2, E2, F2, G2, H2, A1, B1, C1, D1, E1, F1, G1, H1,
 }
 
 impl fmt::Display for Tile {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let disp = match self {
-            Tile::A1 => "A1",
-            Tile::A2 => "A2",
-            Tile::A3 => "A3",
-            Tile::A4 => "A4",
-            Tile::A5 => "A5",
-            Tile::A6 => "A6",
-            Tile::A7 => "A7",
-            Tile::A8 => "A8",
-            Tile::B1 => "B1",
-            Tile::B2 => "B2",
-            Tile::B3 => "B3",
-            Tile::B4 => "B4",
-            Tile::B5 => "B5",
-            Tile::B6 => "B6",
-            Tile::B7 => "B7",
-            Tile::B8 => "B8",
-            Tile::C1 => "C1",
-            Tile::C2 => "C2",
-            Tile::C3 => "C3",
-            Tile::C4 => "C4",
-            Tile::C5 => "C5",
-            Tile::C6 => "C6",
-            Tile::C7 => "C7",
-            Tile::C8 => "C8",
-            Tile::D1 => "D1",
-            Tile::D2 => "D2",
-            Tile::D3 => "D3",
-            Tile::D4 => "D4",
-            Tile::D5 => "D5",
-            Tile::D6 => "D6",
-            Tile::D7 => "D7",
-            Tile::D8 => "D8",
-            Tile::E1 => "E1",
-            Tile::E2 => "E2",
-            Tile::E3 => "E3",
-            Tile::E4 => "E4",
-            Tile::E5 => "E5",
-            Tile::E6 => "E6",
-            Tile::E7 => "E7",
-            Tile::E8 => "E8",
-            Tile::F1 => "F1",
-            Tile::F2 => "F2",
-            Tile::F3 => "F3",
-            Tile::F4 => "F4",
-            Tile::F5 => "F5",
-            Tile::F6 => "F6",
-            Tile::F7 => "F7",
-            Tile::F8 => "F8",
-            Tile::G1 => "G1",
-            Tile::G2 => "G2",
-            Tile::G3 => "G3",
-            Tile::G4 => "G4",
-            Tile::G5 => "G5",
-            Tile::G6 => "G6",
-            Tile::G7 => "G7",
-            Tile::G8 => "G8",
-            Tile::H1 => "H1",
-            Tile::H2 => "H2",
-            Tile::H3 => "H3",
-            Tile::H4 => "H4",
-            Tile::H5 => "H5",
-            Tile::H6 => "H6",
-            Tile::H7 => "H7",
-            Tile::H8 => "H8",
+            Tile::A1 => "A1", Tile::A2 => "A2", Tile::A3 => "A3", Tile::A4 => "A4",
+            Tile::A5 => "A5", Tile::A6 => "A6", Tile::A7 => "A7", Tile::A8 => "A8",
+            Tile::B1 => "B1", Tile::B2 => "B2", Tile::B3 => "B3", Tile::B4 => "B4",
+            Tile::B5 => "B5", Tile::B6 => "B6", Tile::B7 => "B7", Tile::B8 => "B8",
+            Tile::C1 => "C1", Tile::C2 => "C2", Tile::C3 => "C3", Tile::C4 => "C4",
+            Tile::C5 => "C5", Tile::C6 => "C6", Tile::C7 => "C7", Tile::C8 => "C8",
+            Tile::D1 => "D1", Tile::D2 => "D2", Tile::D3 => "D3", Tile::D4 => "D4",
+            Tile::D5 => "D5", Tile::D6 => "D6", Tile::D7 => "D7", Tile::D8 => "D8",
+            Tile::E1 => "E1", Tile::E2 => "E2", Tile::E3 => "E3", Tile::E4 => "E4",
+            Tile::E5 => "E5", Tile::E6 => "E6", Tile::E7 => "E7", Tile::E8 => "E8",
+            Tile::F1 => "F1", Tile::F2 => "F2", Tile::F3 => "F3", Tile::F4 => "F4",
+            Tile::F5 => "F5", Tile::F6 => "F6", Tile::F7 => "F7", Tile::F8 => "F8",
+            Tile::G1 => "G1", Tile::G2 => "G2", Tile::G3 => "G3", Tile::G4 => "G4",
+            Tile::G5 => "G5", Tile::G6 => "G6", Tile::G7 => "G7", Tile::G8 => "G8",
+            Tile::H1 => "H1", Tile::H2 => "H2", Tile::H3 => "H3", Tile::H4 => "H4",
+            Tile::H5 => "H5", Tile::H6 => "H6", Tile::H7 => "H7", Tile::H8 => "H8",
         };
 
         write!(f, "{}", disp)
@@ -468,88 +399,6 @@ impl TryFrom<Coord> for Tile {
             Coord { x: 7, y: 7 } => Ok(Tile::H8),
 
             _ => Err("This coordinate cannot be a tile."),
-        }
-    }
-}
-
-impl FromStr for Tile {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "A1" => Ok(Tile::A1),
-            "A2" => Ok(Tile::A2),
-            "A3" => Ok(Tile::A3),
-            "A4" => Ok(Tile::A4),
-            "A5" => Ok(Tile::A5),
-            "A6" => Ok(Tile::A6),
-            "A7" => Ok(Tile::A7),
-            "A8" => Ok(Tile::A8),
-
-            "B1" => Ok(Tile::B1),
-            "B2" => Ok(Tile::B2),
-            "B3" => Ok(Tile::B3),
-            "B4" => Ok(Tile::B4),
-            "B5" => Ok(Tile::B5),
-            "B6" => Ok(Tile::B6),
-            "B7" => Ok(Tile::B7),
-            "B8" => Ok(Tile::B8),
-
-            "C1" => Ok(Tile::C1),
-            "C2" => Ok(Tile::C2),
-            "C3" => Ok(Tile::C3),
-            "C4" => Ok(Tile::C4),
-            "C5" => Ok(Tile::C5),
-            "C6" => Ok(Tile::C6),
-            "C7" => Ok(Tile::C7),
-            "C8" => Ok(Tile::C8),
-
-            "D1" => Ok(Tile::D1),
-            "D2" => Ok(Tile::D2),
-            "D3" => Ok(Tile::D3),
-            "D4" => Ok(Tile::D4),
-            "D5" => Ok(Tile::D5),
-            "D6" => Ok(Tile::D6),
-            "D7" => Ok(Tile::D7),
-            "D8" => Ok(Tile::D8),
-
-            "E1" => Ok(Tile::E1),
-            "E2" => Ok(Tile::E2),
-            "E3" => Ok(Tile::E3),
-            "E4" => Ok(Tile::E4),
-            "E5" => Ok(Tile::E5),
-            "E6" => Ok(Tile::E6),
-            "E7" => Ok(Tile::E7),
-            "E8" => Ok(Tile::E8),
-
-            "F1" => Ok(Tile::F1),
-            "F2" => Ok(Tile::F2),
-            "F3" => Ok(Tile::F3),
-            "F4" => Ok(Tile::F4),
-            "F5" => Ok(Tile::F5),
-            "F6" => Ok(Tile::F6),
-            "F7" => Ok(Tile::F7),
-            "F8" => Ok(Tile::F8),
-
-            "G1" => Ok(Tile::G1),
-            "G2" => Ok(Tile::G2),
-            "G3" => Ok(Tile::G3),
-            "G4" => Ok(Tile::G4),
-            "G5" => Ok(Tile::G5),
-            "G6" => Ok(Tile::G6),
-            "G7" => Ok(Tile::G7),
-            "G8" => Ok(Tile::G8),
-
-            "H1" => Ok(Tile::H1),
-            "H2" => Ok(Tile::H2),
-            "H3" => Ok(Tile::H3),
-            "H4" => Ok(Tile::H4),
-            "H5" => Ok(Tile::H5),
-            "H6" => Ok(Tile::H6),
-            "H7" => Ok(Tile::H7),
-            "H8" => Ok(Tile::H8),
-
-            _ => Err("invalid tile".to_string()),
         }
     }
 }
@@ -681,7 +530,7 @@ impl GameState {
         board
     }
 
-    fn perform_move(&mut self, chess_move: Move) -> Result<(), String> {
+    fn perform_move(&mut self, chess_move: Move) -> Result<(), MoveError> {
         //performs all move validation here. If it is legal,
         //    the move is added to self.moves
 
@@ -698,16 +547,16 @@ impl GameState {
                 // 1: Is the player grabbing a piece?
                 let piece = board
                     .get_piece(tile_from)
-                    .ok_or("there is nothing at that tile!".to_string())?;
+                    .ok_or(MoveError::TileFromIsEmpty)?;
 
                 // 2: Is the Player grabbing their own piece?
                 if piece.0 != board.whose_turn {
-                    return Err("hey! you can only grab your own pieces!".to_string());
+                    return Err(MoveError::TileFromIsEnemyPiece);
                 }
 
                 // 3: Is the move legal according to how the piece moves?
                 if !is_piece_move_legal(piece, tile_from, tile_to, last_move, &board, &mut is_en_passant) {
-                    return Err("That piece does not move that way.".to_string());
+                    return Err(MoveError::PieceDoesNotMoveLikeThat);
                 }
 
                 // promotion check: error if it is a pawn move that reached the back rank_spec
@@ -719,7 +568,7 @@ impl GameState {
                 };
 
                 if piece_type == ChessPiece::Pawn && tile_to_coord.y == back_rank {
-                    return Err("You must specify the promotion piece. e.g: e8=q".to_string());
+                    return Err(MoveError::PromotionPieceNotSpecified);
                 }
             }
             Move::PieceMoveWithPromotion {tile_from, tile_to, promotion} => {
@@ -727,18 +576,17 @@ impl GameState {
                 // 1: Is the player grabbing a piece?
                 let piece = board
                     .get_piece(tile_from)
-                    .ok_or("there is nothing at that tile!".to_string())?;
+                    .ok_or(MoveError::TileFromIsEmpty)?;
 
                 // 2: Is the Player grabbing their own piece?
                 if piece.0 != board.whose_turn {
-                    return Err("hey! you can only grab your own pieces!".to_string());
+                    return Err(MoveError::TileFromIsEnemyPiece);
                 }
 
                 // 3: Is the move legal according to how the piece moves?
                 if !is_piece_move_legal(piece, tile_from, tile_to, last_move, &board, &mut is_en_passant) {
-                    return Err("That piece does not move that way.".to_string());
+                    return Err(MoveError::PieceDoesNotMoveLikeThat);
                 }
-
 
                 //rank has to be the back rank
                 let tile_to_coord = Coord::from(tile_to);
@@ -749,58 +597,29 @@ impl GameState {
                 };
 
                 if tile_to_coord.y != back_rank {
-                    return Err("The pawn has to reach the back rank to promote.".to_string());
+                    return Err(MoveError::PromotionNotLegal);
                 }
 
                 // promotion can't be a pawn or a king
                 if promotion == ChessPiece::Pawn || promotion == ChessPiece::King {
-                    return Err("You can't promote to a pawn or a king... try another piece".to_string());
+                    return Err(MoveError::PromotionWrongPiece);
                 }
             }
             Move::CastleShort | Move::CastleLong => {
-                // TODO(lucypero): castling
-                //1. check if rook and king have not moved
-
-                // let rook_tile = match self.whose_turn() {
-                //     ChessTeam::Black => {
-                //         if chess_move == Move::CastleShort {Tile::H8} else {Tile::A8}
-                //     },
-                //     ChessTeam::White => {
-                //         if chess_move == Move::CastleShort {Tile::H1} else {Tile::A1}
-                //     }
-                // };
-
-                // let king_tile = match self.whose_turn() {
-                //     ChessTeam::Black => Tile::E8,
-                //     ChessTeam::White => Tile::E1
-                // };
-
-//                 for (pos, the_move) in self.moves.iter().enumerate() {
-//                     match the_move {
-//                         Move::PieceMove { piece: _, tile_from, tile_to, is_en_passant: _ } | 
-//                         Move::PieceMoveWithPromotion { tile_from, tile_to, promotion: _ } => {
-//                             if *tile_from == rook_tile || *tile_from == king_tile || *tile_to == rook_tile || *tile_to == king_tile {
-//                                 return Err("Can't castle. The rook or the king have already moved".to_string());
-//                             }
-//                         }
-//                         _ => 
-//                     }
-//                 }
-
                 //1. check if the player has castling rights
-                let err_str = Err("Can't castle. The player has no castling rights".to_string());
+                let the_err = Err(MoveError::CastlingNoRights);
 
                 match self.whose_turn() {
                     ChessTeam::Black => {
                         if (chess_move == Move::CastleShort && !board.castling_rights.2) ||        
                             (chess_move == Move::CastleLong && !board.castling_rights.3) {
-                            return err_str;
+                            return the_err;
                         }
                     }
                     ChessTeam::White => {
                         if (chess_move == Move::CastleShort && !board.castling_rights.0) ||        
                             (chess_move == Move::CastleLong && !board.castling_rights.1) {
-                            return err_str;
+                            return the_err;
                         }
                     }
                 }
@@ -832,7 +651,7 @@ impl GameState {
 
                 for tile in tiles_in_btw {
                     if board.get_piece(tile).is_some() {
-                        return Err("Can't castle. The tiles in between are not free".to_string());
+                        return Err(MoveError::CastlingTilesInBetweenNotFree);
                     }
                 }
 
@@ -856,7 +675,7 @@ impl GameState {
 
                 for tile in tiles_king {
                     if board.is_tile_attacked_by(self.whose_turn().the_other_one(), tile, last_move) {
-                        return Err("Can't castle while in or through check.".to_string());
+                        return Err(MoveError::CastlingThroughCheck);
                     }
                 }
             }
@@ -872,7 +691,7 @@ impl GameState {
         //finding king tile
         let king_coord = future_board.find_pieces(self.whose_turn(), ChessPiece::King)[0];
         if future_board.is_tile_attacked_by(self.whose_turn().the_other_one(), Tile::try_from(king_coord).unwrap(), Some(chess_move)) {
-            return Err("Your King would be in check. King can't be in check.".to_string());
+            return Err(MoveError::InCheck);
         }
 
         //Everything is good. adding move to self.moves
@@ -896,10 +715,36 @@ impl GameState {
 // functions that process moves from user input
 mod move_processor {
 
+
+    // Errors while parsing move
+    
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub enum MoveParseError {
+        //Move is ambiguous. More than one of that piece type can move there. Try specifying the rank and/or file of the piece.
+        Ambiguous,
+        //no piece of that type can make that move
+        NoPiece,
+        //destination tile is incomplete
+        NoDestination,
+        //Move could not be parsed.
+        CantParse,
+    }
+
+    impl fmt::Display for MoveParseError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self {
+                MoveParseError::Ambiguous => write!(f, "{}", "Move is ambiguous. More than one of that piece type can move there. Try specifying the rank and/or file of the piece."),
+                MoveParseError::NoPiece => write!(f, "{}", "no piece of that type can make that move"),
+                MoveParseError::NoDestination => write!(f, "{}", "destination tile is incomplete"),
+                MoveParseError::CantParse => write!(f, "{}", "Move could not be parsed."),
+            }
+        }
+    }
+
     use super::*;
 
     //returns a tile if destination tuple contains both a file and a rank
-    fn get_dest_tile(the_move: &move_parser::Move) -> Result<Coord, ()> {
+    fn get_dest_tile(the_move: &move_parser::Move) -> Result<Coord, MoveParseError> {
         if let move_parser::MovePrimary::PieceMove {
             piece: _,
             destination,
@@ -915,12 +760,12 @@ mod move_processor {
                 'f' => 5,
                 'g' => 6,
                 'h' => 7,
-                _ => return Err(()),
+                _ => return Err(MoveParseError::NoDestination),
             };
 
             let rank_coord = destination.1.to_digit(10);
             if rank_coord.is_none() {
-                return Err(());
+                return Err(MoveParseError::NoDestination);
             }
 
             let rank_coord = (rank_coord.unwrap() - 1) as i32;
@@ -931,12 +776,12 @@ mod move_processor {
             });
         }
 
-        Err(())
+        Err(MoveParseError::NoDestination)
     }
 
     //part of the get_moved_* series. it tries
     //  to get the tile where the piece that made the move to dest is.
-    fn get_moved_pawn(dest: Coord, board: &Board) -> Result<Coord, ()> {
+    fn get_moved_pawn(dest: Coord, board: &Board) -> Result<Coord, MoveParseError> {
         //walks backwards from dest (max 2 tiles) until there's a pawn.
 
         let team_factor = match board.whose_turn {
@@ -958,14 +803,14 @@ mod move_processor {
                     if p == ChessPiece::Pawn && t == board.whose_turn {
                         return Ok(coord_iter);
                     } else {
-                        return Err(());
+                        return Err(MoveParseError::NoPiece);
                     }
                 }
                 None => continue,
             }
         }
 
-        Err(())
+        Err(MoveParseError::NoPiece)
     }
 
     fn get_piece(p: char) -> Option<ChessPiece> {
@@ -1001,7 +846,7 @@ mod move_processor {
         Ok(rank_coord.unwrap() as i32)
     }
 
-    fn get_non_pawn_move(the_move: move_parser::Move, board: &Board) -> Result<Move, String> {
+    fn get_non_pawn_move(the_move: move_parser::Move, board: &Board) -> Result<Move, MoveParseError> {
         let piece = match the_move.primary {
             move_parser::MovePrimary::PieceMove {
                 piece: p,
@@ -1040,16 +885,16 @@ mod move_processor {
         //2. if more than 1, ask to specify
         //   if 1, u have the move
         if pieces.len() > 1 {
-            Err("Move is ambiguous. More than one of that piece type can move there. Try specifying the rank and/or file of the piece.".to_string())
+            Err(MoveParseError::Ambiguous)
         } else if pieces.len() < 1 {
-            Err("no piece of that type can make that move".to_string())
+            Err(MoveParseError::NoPiece)
         } else {
             let tile_from = Tile::try_from(pieces[0]).unwrap();
             Ok(Move::PieceMove { piece, tile_from, tile_to, is_en_passant: false})
         }
     }
 
-    fn get_pawn_capture(the_move: move_parser::Move, last_move: Option<Move>, board: &Board) -> Result<Move, String> {
+    fn get_pawn_capture(the_move: move_parser::Move, last_move: Option<Move>, board: &Board) -> Result<Move, MoveParseError> {
         let mut file_from = '-';
         let mut destination = ('-', '-');
         let mut promotion = '-';
@@ -1109,9 +954,9 @@ mod move_processor {
         //3. if more than one pawn can take, return error "need to specify tile to take"
         //   if only one pawn can take, return the move
         if pawns.len() > 1 {
-            Err("Move is ambiguous. More than one pawn can take. Try specifying the destination rank.".to_string())
+            Err(MoveParseError::Ambiguous)
         } else if pawns.len() < 1 {
-            Err("no pawn can make that move".to_string())
+            Err(MoveParseError::NoPiece)
         } else {
 
             let tile_from = tile_from.unwrap();
@@ -1132,20 +977,11 @@ mod move_processor {
         }
     }
 
-    fn get_pawn_move(the_move: move_parser::Move, board: &Board) -> Result<Move, String> {
-        let coord_dest = get_dest_tile(&the_move);
-
-        if coord_dest.is_err() {
-            return Err("can't parse pawn move: destination tile is incomplete".to_string());
-        }
-
-        let coord_dest = coord_dest.unwrap();
+    fn get_pawn_move(the_move: move_parser::Move, board: &Board) -> Result<Move, MoveParseError> {
+        let coord_dest = get_dest_tile(&the_move)?;
 
         // Get the moved pawn location
-        let coord_from = get_moved_pawn(coord_dest, board);
-        if coord_from.is_err() {
-            return Err("no pawn can make the move".to_string());
-        }
+        let coord_from = get_moved_pawn(coord_dest, board)?;
 
         if let move_parser::MovePrimary::PieceMove {
             piece: _,
@@ -1157,32 +993,32 @@ mod move_processor {
                 let promoted_piece_type = get_piece(promotion).unwrap();
 
                 return Ok(Move::PieceMoveWithPromotion {
-                    tile_from: Tile::try_from(coord_from.unwrap()).unwrap(),
+                    tile_from: Tile::try_from(coord_from).unwrap(),
                     tile_to: Tile::try_from(coord_dest).unwrap(),
                     promotion: promoted_piece_type,
                 });
             } else {
                 return Ok(Move::PieceMove {
                     piece: ChessPiece::Pawn,
-                    tile_from: Tile::try_from(coord_from.unwrap()).unwrap(),
+                    tile_from: Tile::try_from(coord_from).unwrap(),
                     tile_to: Tile::try_from(coord_dest).unwrap(),
                     is_en_passant: false
                 });
             }
         }
 
-        Err("this will never be reached".to_string())
+        Err(MoveParseError::NoPiece)
     }
 
     // This uses our move parser in move_parser::parse() then processes the output
     //  It finds the right piece to move, and the destination tile, and constructs a Move
-    pub fn parse_move(mut move_input: String, game: &GameState) -> Result<Move, String> {
+    pub fn parse_move(mut move_input: String, game: &GameState) -> Result<Move, MoveParseError> {
         move_input.retain(|c| !c.is_whitespace());
 
         let moves = move_parser::parse(move_input.chars().collect());
 
         if moves.is_err() {
-            return Err("Move could not be parsed.".to_string());
+            return Err(MoveParseError::CantParse);
         }
 
         let moves = moves.unwrap();
@@ -1192,7 +1028,7 @@ mod move_processor {
 
         let mut the_move: Option<Move> = None;
 
-        let mut last_error: String = "Can't parse".to_string();
+        let mut last_error = MoveParseError::CantParse;
 
         for move_i in moves {
             match move_i.primary {
@@ -1246,7 +1082,6 @@ mod move_processor {
         Err(last_error)
     }
 }
-
 
 // Part of move validation. Validates chess piece move logic
 // note: it does not take into account if the move puts the player's king in check
@@ -2099,43 +1934,59 @@ fn game_loop(game: &mut GameState) {
     }
 }
 
+fn get_test(args: Vec<String>) -> Option<GameState> {
+    if args.len() <= 1 {
+        return None;
+    }
+
+    if args.get(1).unwrap() == "test" {
+        let test_arg = args.get(2);
+        if test_arg.is_none() {
+            return None;
+        }
+
+        match test_arg.unwrap().as_str() {
+            "promotion-test" => {
+
+                let mut piece_locations = HashMap::new();
+
+                piece_locations.insert(Tile::A1, TeamedChessPiece(ChessTeam::White, ChessPiece::King));
+                piece_locations.insert(Tile::A8, TeamedChessPiece(ChessTeam::Black, ChessPiece::King));
+                piece_locations.insert(Tile::D7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+                piece_locations.insert(Tile::E7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+                piece_locations.insert(Tile::D2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
+                piece_locations.insert(Tile::E2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
+                piece_locations.insert(Tile::H3, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+
+                let board = Board {
+                    whose_turn: ChessTeam::White,
+                    piece_locations,
+                    castling_rights: (false,false,false,false)
+                };
+
+                return Some(GameState::init_from_custom_position(board));
+            }
+            _ => {}
+        }
+    }
+
+    None
+}
+
 fn main() {
+    // test scenarios
+    let args: Vec<String> = env::args().collect();
+    let test_game = get_test(args);
 
     //read move from stdin, you write the move and press enter
     println!("Welcome to chess! Type !help for all the commands");
 
     //initializing game state
-    let mut game = GameState::init();
+    let mut game = if test_game.is_some() {
+        test_game.unwrap()
+    } else {
+        GameState::init()
+    };
+
     game_loop(&mut game);
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    fn make_pawn_promotion_test_board() -> Board {
-        let mut piece_locations = HashMap::new();
-
-        piece_locations.insert(Tile::A1, TeamedChessPiece(ChessTeam::White, ChessPiece::King));
-        piece_locations.insert(Tile::A8, TeamedChessPiece(ChessTeam::Black, ChessPiece::King));
-        piece_locations.insert(Tile::D7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
-        piece_locations.insert(Tile::E7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
-        piece_locations.insert(Tile::D2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
-        piece_locations.insert(Tile::E2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
-        piece_locations.insert(Tile::H3, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
-
-        Board {
-            whose_turn: ChessTeam::White,
-            piece_locations,
-            castling_rights: (false,false,false,false)
-        }
-    }
-
-
-    #[test]
-    fn pawn_promotion_position() {
-        let mut game = GameState::init_from_custom_position(make_pawn_promotion_test_board());
-        game_loop(&mut game);
-    }
 }
