@@ -87,16 +87,16 @@ enum MoveError {
 impl fmt::Display for MoveError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MoveError::TileFromIsEmpty => write!(f, "{}", "there is nothing at that tile!"),
-            MoveError::TileFromIsEnemyPiece => write!(f, "{}", "hey! you can only grab your own pieces!"),
-            MoveError::PieceDoesNotMoveLikeThat => write!(f, "{}", "That piece does not move that way."),
-            MoveError::PromotionPieceNotSpecified => write!(f, "{}", "You must specify the promotion piece. e.g: e8=q"),
-            MoveError::PromotionNotLegal => write!(f, "{}", "The pawn has to reach the back rank to promote."),
-            MoveError::PromotionWrongPiece => write!(f, "{}", "You can't promote to a pawn or a king... try another piece"),
-            MoveError::CastlingNoRights => write!(f, "{}", "Can't castle. The player has no castling rights"),
-            MoveError::CastlingTilesInBetweenNotFree => write!(f, "{}", "Can't castle. The tiles in between are not free "),
-            MoveError::CastlingThroughCheck => write!(f, "{}", "Can't castle while in or through check."),
-            MoveError::InCheck => write!(f, "{}", "Your King would be in check. King can't be in check."),
+            MoveError::TileFromIsEmpty => write!(f, "there is nothing at that tile!"),
+            MoveError::TileFromIsEnemyPiece => write!(f, "hey! you can only grab your own pieces!"),
+            MoveError::PieceDoesNotMoveLikeThat => write!(f, "That piece does not move that way."),
+            MoveError::PromotionPieceNotSpecified => write!(f, "You must specify the promotion piece. e.g: e8=q"),
+            MoveError::PromotionNotLegal => write!(f, "The pawn has to reach the back rank to promote."),
+            MoveError::PromotionWrongPiece => write!(f, "You can't promote to a pawn or a king... try another piece."),
+            MoveError::CastlingNoRights => write!(f, "Can't castle. The player has no castling rights."),
+            MoveError::CastlingTilesInBetweenNotFree => write!(f, "Can't castle. The tiles in between are not free."),
+            MoveError::CastlingThroughCheck => write!(f, "Can't castle while in or through check."),
+            MoveError::InCheck => write!(f, "Your King would be in check. King can't be in check."),
         }
     }
 }
@@ -487,7 +487,7 @@ impl GameState {
 
         let team_pieces = board.find_pieces_of_team(self.whose_turn());
         for piece in team_pieces {
-            if board.get_legal_moves_of_piece_in_tile(piece.1, self.get_last_move()).unwrap().len() > 0 {
+            if !board.get_legal_moves_of_piece_in_tile(piece.1, self.get_last_move()).unwrap().is_empty() {
                 has_legal_moves = true;
                 break;
             }
@@ -501,9 +501,9 @@ impl GameState {
         // 2. if team is in check, it is checkmate and current team has lost
         //    2.2 if not, it is stalemate
         if board.is_team_in_check(self.whose_turn(), self.get_last_move()) {
-            return GameEndState::Checkmate;
+            GameEndState::Checkmate
         } else {
-            return GameEndState::Stalemate;
+            GameEndState::Stalemate
         }
     }
 
@@ -512,7 +512,7 @@ impl GameState {
     }
 
     fn move_count(&self) -> u32 {
-        return self.moves.len() as u32;
+        self.moves.len() as u32
     }
 
     //Returns the current board position
@@ -524,7 +524,7 @@ impl GameState {
 
         let mut board = self.starting_board.clone();
         for chess_move in self.moves.iter() {
-            board.apply_move(chess_move.clone());
+            board.apply_move(*chess_move);
         }
 
         board
@@ -733,10 +733,10 @@ mod move_processor {
     impl fmt::Display for MoveParseError {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match self {
-                MoveParseError::Ambiguous => write!(f, "{}", "Move is ambiguous. More than one of that piece type can move there. Try specifying the rank and/or file of the piece."),
-                MoveParseError::NoPiece => write!(f, "{}", "no piece of that type can make that move"),
-                MoveParseError::NoDestination => write!(f, "{}", "destination tile is incomplete"),
-                MoveParseError::CantParse => write!(f, "{}", "Move could not be parsed."),
+                MoveParseError::Ambiguous => write!(f, "Move is ambiguous. More than one of that piece type can move there. Try specifying the rank and/or file of the piece."),
+                MoveParseError::NoPiece => write!(f, "no piece of that type can make that move"),
+                MoveParseError::NoDestination => write!(f, "destination tile is incomplete"),
+                MoveParseError::CantParse => write!(f, "Move could not be parsed."),
             }
         }
     }
@@ -870,11 +870,12 @@ mod move_processor {
         let mut pieces = board.find_pieces(board.whose_turn, piece);
 
         // filter if there is specification
-        if file_spec.is_ok() {
-            pieces.retain(move |&p| p.x == file_spec.unwrap())
+        if let Ok(file_spec) = file_spec {
+            pieces.retain(move |&p| p.x == file_spec)
         }
-        if rank_spec.is_ok() {
-            pieces.retain(move |&p| p.y == rank_spec.unwrap());
+
+        if let Ok(rank_spec) = rank_spec {
+            pieces.retain(move |&p| p.y == rank_spec);
         }
 
         pieces.retain(move |&p| {
@@ -884,13 +885,13 @@ mod move_processor {
 
         //2. if more than 1, ask to specify
         //   if 1, u have the move
-        if pieces.len() > 1 {
-            Err(MoveParseError::Ambiguous)
-        } else if pieces.len() < 1 {
-            Err(MoveParseError::NoPiece)
-        } else {
-            let tile_from = Tile::try_from(pieces[0]).unwrap();
-            Ok(Move::PieceMove { piece, tile_from, tile_to, is_en_passant: false})
+        match pieces.len().cmp(&1) {
+            std::cmp::Ordering::Greater => Err(MoveParseError::Ambiguous),
+            std::cmp::Ordering::Less => Err(MoveParseError::NoPiece),
+            std::cmp::Ordering::Equal => {
+                let tile_from = Tile::try_from(pieces[0]).unwrap();
+                Ok(Move::PieceMove { piece, tile_from, tile_to, is_en_passant: false})
+            }
         }
     }
 
@@ -899,18 +900,15 @@ mod move_processor {
         let mut destination = ('-', '-');
         let mut promotion = '-';
 
-        match the_move.primary {
-            move_parser::MovePrimary::PieceMove {
-                piece,
-                destination: d,
-                promotion: p,
-            } => {
-                destination = d;
-                promotion = p;
-                file_from = piece.1
-            }
-            _ => {}
-        };
+        if let move_parser::MovePrimary::PieceMove {
+            piece,
+            destination: d,
+            promotion: p,
+        } = the_move.primary {
+            destination = d;
+            promotion = p;
+            file_from = piece.1
+        }
 
         let team_factor = match board.whose_turn {
             ChessTeam::White => 1,
@@ -935,14 +933,12 @@ mod move_processor {
 
             let coord_pawn_target = Coord {
                 x: file,
-                y: p.y + 1 * team_factor,
+                y: p.y + team_factor,
             };
 
             // if the rank is specified, test if it is the same as coord_pawn_target
-            if rank.is_ok() {
-                if (Coord { x: file, y: rank.unwrap()}) != coord_pawn_target {
-                    return false;
-                }
+            if rank.is_ok() && ((Coord { x: file, y: rank.unwrap()}) != coord_pawn_target) {
+                return false;
             }
 
             tile_from = Some(Tile::try_from(p).unwrap());
@@ -953,26 +949,25 @@ mod move_processor {
 
         //3. if more than one pawn can take, return error "need to specify tile to take"
         //   if only one pawn can take, return the move
-        if pawns.len() > 1 {
-            Err(MoveParseError::Ambiguous)
-        } else if pawns.len() < 1 {
-            Err(MoveParseError::NoPiece)
-        } else {
+        match pawns.len().cmp(&1) {
+            std::cmp::Ordering::Greater => Err(MoveParseError::Ambiguous),
+            std::cmp::Ordering::Less => Err(MoveParseError::NoPiece),
+            std::cmp::Ordering::Equal => {
+                let tile_from = tile_from.unwrap();
+                let tile_to = tile_to.unwrap();
 
-            let tile_from = tile_from.unwrap();
-            let tile_to = tile_to.unwrap();
-
-            if promotion != '-' {
+                if promotion != '-' {
 
 
-                let promoted_piece_type = get_piece(promotion).unwrap();
-                Ok(Move::PieceMoveWithPromotion {
-                    tile_from,
-                    tile_to,
-                    promotion: promoted_piece_type,
-                })
-            } else {
-                Ok(Move::PieceMove { piece: ChessPiece::Pawn, tile_from, tile_to, is_en_passant})
+                    let promoted_piece_type = get_piece(promotion).unwrap();
+                    Ok(Move::PieceMoveWithPromotion {
+                        tile_from,
+                        tile_to,
+                        promotion: promoted_piece_type,
+                    })
+                } else {
+                    Ok(Move::PieceMove { piece: ChessPiece::Pawn, tile_from, tile_to, is_en_passant})
+                }
             }
         }
     }
@@ -1056,8 +1051,8 @@ mod move_processor {
                         piece_move = get_non_pawn_move(move_i, &board);
                     }
 
-                    if piece_move.is_ok() {
-                        the_move = Some(piece_move.unwrap());
+                    if let Ok(piece_move) = piece_move {
+                        the_move = Some(piece_move);
                     } else {
                         last_error = piece_move.unwrap_err();
                     }
@@ -1109,7 +1104,7 @@ fn is_piece_move_legal(
                 ChessTeam::Black => -1,
             };
 
-            if coord_distance.y == 1 * team_factor && coord_distance.x == 0 {
+            if coord_distance.y == team_factor && coord_distance.x == 0 {
                 // NOTE(lucypero): going to have to do this some day
                 // board.is_path_blocked(chess_move.tile_from, chess_move.tile_to)
 
@@ -1148,17 +1143,16 @@ fn is_piece_move_legal(
             }
 
             // diagonal move when it takes a piece
-            if coord_distance.x.abs() == 1 && coord_distance.y == 1 * team_factor {
+            if coord_distance.x.abs() == 1 && coord_distance.y == team_factor {
                 //get the targeted tile
                 //if there is a piece and it is the other team's, the move is valid
                 let target_piece_option = board.get_piece(tile_to);
 
-                if target_piece_option.is_some() {
-                    let target_piece = target_piece_option.unwrap();
+                if let Some(target_piece) = target_piece_option {
                     if team != target_piece.0 {
                         return true;
                     }
-                } 
+                }
                 //en passant
                 else if (board.whose_turn == ChessTeam::Black && tile_to_coord.y == 2) ||
                         (board.whose_turn == ChessTeam::White && tile_to_coord.y == 5) {
@@ -1232,7 +1226,7 @@ fn is_piece_move_legal(
             }
 
             //line has to be a diagonal
-            if !(coord_distance.x.abs() == coord_distance.y.abs()) {
+            if coord_distance.x.abs() != coord_distance.y.abs() {
                 return false;
             }
 
@@ -1533,11 +1527,11 @@ impl Board {
                 };
 
                 // 1 and 2 moves ahead
-                safe_coord_add(coord_from + Coord{x:0, y:1 * team_factor}, &mut moves);
+                safe_coord_add(coord_from + Coord{x:0, y:team_factor}, &mut moves);
                 safe_coord_add(coord_from + Coord{x:0, y:2 * team_factor}, &mut moves);
                 // diagonals
-                safe_coord_add(coord_from + Coord{x:1, y:1 * team_factor}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:-1, y:1 * team_factor}, &mut moves);
+                safe_coord_add(coord_from + Coord{x:1, y:team_factor}, &mut moves);
+                safe_coord_add(coord_from + Coord{x:-1, y:team_factor}, &mut moves);
             }
             ChessPiece::Rook => {
                 // all other tiles on its file and rank
@@ -1870,25 +1864,34 @@ fn game_loop(game: &mut GameState) {
 
         let mut line = line_res.unwrap();
 
-        if line.len() <= 0 {
+        if line.is_empty() {
             println!("Type the move!");
             continue;
         }
 
-        let first_character = line.chars().nth(0);
+        let first_character = line.chars().next();
 
         //parsing commands
         if first_character.unwrap() == '!' {
             let command = line.split_off(1);
             match command.as_str() {
                 "help" => {
-                    print!("Welcome to chess!\n\nJust type the move you want to make!\n\nAvailable commands:\n\n!help - show this dialog\n!test: test command\n");
+                    print!(r#"
+Welcome to chess!
+Just type the move you want to make! (in algebraic chess notation: https://en.wikipedia.org/wiki/Algebraic_notation_(chess))
+
+Available commands:
+
+!help - show this dialog
+!move_count - show how many moves were made
+!test: test command
+"#);
                 }
                 "move_count" => {
                     println!(
                         "{} moves were made. {} to move.",
                         game.move_count(),
-                        "White"
+                        game.whose_turn()
                     );
                 }
                 "test" => {
@@ -1940,12 +1943,10 @@ fn get_test(args: Vec<String>) -> Option<GameState> {
     }
 
     if args.get(1).unwrap() == "test" {
-        let test_arg = args.get(2);
-        if test_arg.is_none() {
-            return None;
-        }
+        let test_arg = args.get(2)?;
 
-        match test_arg.unwrap().as_str() {
+        #[allow(clippy::single_match)]
+        match test_arg.as_str() {
             "promotion-test" => {
 
                 let mut piece_locations = HashMap::new();
@@ -1982,8 +1983,8 @@ fn main() {
     println!("Welcome to chess! Type !help for all the commands");
 
     //initializing game state
-    let mut game = if test_game.is_some() {
-        test_game.unwrap()
+    let mut game = if let Some(test_game) = test_game {
+        test_game
     } else {
         GameState::init()
     };
