@@ -17,7 +17,6 @@ async fn main() {
     let args: Vec<String> = std::env::args().collect();
     let test_game = chess::get_test(args);
 
-
     //initializing game state
     let mut game = if let Some(test_game) = test_game {
         test_game

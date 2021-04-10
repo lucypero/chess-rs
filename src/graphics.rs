@@ -17,6 +17,13 @@ use macroquad::input;
 const PIECE_DISPLAY_SIZE: f32 = 80.0;
 const BOARD_PADDING: f32 = 30.0;
 
+// Color used for legal move indicators, arrows, tile where the piece will end up, etc...
+const HIGHLIGHT_COLOR: Color = Color{r:0.89, g:0.596, b:0.850, a: 0.6}; //pinki
+// const HIGHLIGHT_COLOR: Color = Color{r:0.4, g:0.4, b:0.4, a: 0.4};
+
+// Color used for last move tiles
+const LAST_MOVE_COLOR: Color = Color{r:0.00, g:1.0, b:0.0, a: 0.2};
+
 const PIECE_TEXTURES: [&str; 33] = [
     "assets/pieces/neo.png",
     "assets/pieces/8_bit.png",
@@ -102,13 +109,13 @@ pub fn get_mq_conf() -> Conf {
 pub struct GfxState {
     dragged_piece_i: usize,
     is_dragged: bool,
-    drag_offset: Vec2,
     board_col: ColBox,
     pieces: Vec<Piece>,
     board_tex: Texture2D,
     pieces_tex: Texture2D,
     piece_tex_index: usize,
     board_tex_index: usize,
+    dragged_legal_moves: Vec<Coord>
 }
 
 fn get_board_coord(tile: Tile) -> Coord {
@@ -127,7 +134,6 @@ impl GfxState {
         // let tex = load_texture("assets/smiley.png").await;
         let dragged_piece_i = 0;
         let is_dragged = false;
-        let drag_offset = Vec2{x:0.0, y:0.0};
 
         let board_col = ColBox {x: BOARD_PADDING, y: BOARD_PADDING,
                                 w: PIECE_DISPLAY_SIZE * 8.0, h: PIECE_DISPLAY_SIZE * 8.0};
@@ -136,7 +142,6 @@ impl GfxState {
         let pieces_tex = load_texture(PIECE_TEXTURES[piece_tex_index]).await;
 
         let mut state = GfxState {
-            drag_offset,
             dragged_piece_i,
             is_dragged,
             board_col,
@@ -145,11 +150,21 @@ impl GfxState {
             pieces: vec![],
             piece_tex_index,
             board_tex_index,
+            dragged_legal_moves: vec![],
         };
 
         state.sync_board(&game.get_board());
 
         state
+    }
+
+    fn get_coord_col(&self, coord : Coord) -> ColBox {
+        ColBox{ 
+            x: self.board_col.x + (self.board_col.w / 8.0) * coord.x as f32,
+            y: self.board_col.y + (self.board_col.h / 8.0) * (7 - coord.y) as f32,
+            w:self.board_col.w / 8.0,
+            h:self.board_col.w / 8.0
+        }
     }
 
     fn sync_board(&mut self, board: &Board) {
@@ -229,6 +244,16 @@ impl GfxState {
         }
     }
 
+    fn draw_legal_move_tiles_at(&self, coords : &Vec<Coord>) {
+        for coord in coords {
+            draw_circle(self.board_col.x + (self.board_col.w / 8.0 / 2.0) 
+                + coord.x as f32 * (self.board_col.w / 8.0),
+                self.board_col.y + (self.board_col.h / 8.0 / 2.0) 
+                + (7 - coord.y) as f32 * (self.board_col.h / 8.0),
+                12.0, HIGHLIGHT_COLOR);
+        }
+    }
+
     pub async fn draw(&mut self, game: &mut GameState) {
 
         if input::is_key_pressed(KeyCode::B) {
@@ -266,6 +291,54 @@ impl GfxState {
         };
 
         draw_texture_ex(self.board_tex, self.board_col.x, self.board_col.y, WHITE, board_params);
+
+        //draw tiles of last move
+        if let Some(last_move) = game.get_last_move() {
+
+            let coord_from: Coord;
+            let coord_to: Coord;
+
+            match last_move {
+                Move::PieceMove { piece:_, tile_from, tile_to, is_en_passant:_ } => {
+                    coord_from = Coord::from(tile_from);
+                    coord_to = Coord::from(tile_to);
+                }
+                Move::PieceMoveWithPromotion { tile_from, tile_to, promotion:_ } => {
+                    coord_from = Coord::from(tile_from);
+                    coord_to = Coord::from(tile_to);
+                }
+                Move::CastleShort => {
+                    match game.whose_turn().the_other_one() {
+                        ChessTeam::Black => {
+                            coord_from = Coord{x:4, y: 7};
+                            coord_to = Coord{x:6, y: 7};
+                        }
+                        ChessTeam::White => {
+                            coord_from = Coord{x:4, y: 0};
+                            coord_to = Coord{x:6, y: 0};
+                        }
+                    }
+                }
+                Move::CastleLong => {
+                    match game.whose_turn().the_other_one() {
+                        ChessTeam::Black => {
+                            coord_from = Coord{x:4, y: 7};
+                            coord_to = Coord{x:2, y: 7};
+                        }
+                        ChessTeam::White => {
+                            coord_from = Coord{x:4, y: 0};
+                            coord_to = Coord{x:2, y: 0};
+                        }
+                    }
+                }
+            }
+
+            let col_from = self.get_coord_col(coord_from);
+            let col_to = self.get_coord_col(coord_to);
+
+            draw_rectangle(col_from.x, col_from.y, col_from.w, col_from.h, LAST_MOVE_COLOR);
+            draw_rectangle(col_to.x, col_to.y, col_to.w, col_to.h, LAST_MOVE_COLOR);
+        }
 
         if !input::is_mouse_button_down(MouseButton::Left) && self.is_dragged{
             // println!("dragged stopped!");
@@ -306,9 +379,18 @@ impl GfxState {
                         continue;
                     }
                     self.is_dragged = true;
-                    self.drag_offset.x = mouse_vec.x - piece.col.x;
-                    self.drag_offset.y = mouse_vec.y - piece.col.y;
+
+                    // populate dragged legal moves
+
+                    let board = game.get_board();
+                    self.dragged_legal_moves = board.get_legal_moves_of_piece_in_tile(
+                        Tile::try_from(self.pieces[i].pos).unwrap(),
+                        game.get_last_move()).unwrap();
+
+                    // self.drag_offset.x = mouse_vec.x - piece.col.x;
+                    // self.drag_offset.y = mouse_vec.y - piece.col.y;
                     self.dragged_piece_i = i;
+
                     // println!("drag offset {}", drag_offset);
                     break;
                 }
@@ -316,14 +398,49 @@ impl GfxState {
 
         }
 
-        if self.is_dragged {
-            let mouse_vec = input::mouse_position();
-            self.pieces[self.dragged_piece_i].col.x = mouse_vec.0 - self.drag_offset.x;
-            self.pieces[self.dragged_piece_i].col.y = mouse_vec.1 - self.drag_offset.y;
+        for (i,piece) in self.pieces.iter().enumerate() {
+            if self.is_dragged && i != self.dragged_piece_i || !self.is_dragged{
+                piece.draw(&self.pieces_tex);
+            }
         }
 
-        for piece in &self.pieces {
-            piece.draw(self.pieces_tex);
+        if self.is_dragged {
+            let mouse_vec = input::mouse_position();
+
+            let mut pi = &mut self.pieces[self.dragged_piece_i];
+
+            pi.col.x = mouse_vec.0 - pi.col.w / 2.0;
+            pi.col.y = mouse_vec.1 - pi.col.h / 2.0;
+
+            self.draw_legal_move_tiles_at(&self.dragged_legal_moves);
+
+            //frame the tile on hover
+            let mouse_vec = Vec2{x:mouse_vec.0, y: mouse_vec.1};
+            if self.board_col.is_in_box(mouse_vec) {
+                //get tile where the mouse was in
+                let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
+                let coord_y = (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32;
+                let board_coord = Coord{x:coord_x, y: 7 - coord_y};
+
+                let col = self.get_coord_col(board_coord);
+
+                draw_rectangle_lines( 
+                    col.x, col.y, col.w, col.h,
+                    15.0,
+                    HIGHLIGHT_COLOR
+                );
+            }
+        }
+
+
+
+        if input::is_mouse_button_down(MouseButton::Right) && self.is_dragged {
+            self.is_dragged = false;
+            self.sync_board(&game.get_board());
+        }
+
+        if self.is_dragged {
+            self.pieces[self.dragged_piece_i].draw(&self.pieces_tex);
         }
     }
 }
@@ -367,7 +484,7 @@ impl Piece {
         self.col.y = (board_col.h / 8.0) * (7 - self.pos.y) as f32 + board_col.y;
     }
 
-    fn draw(&self, atlas_tex: Texture2D) {
+    fn draw(&self, atlas_tex: &Texture2D) {
 
         let mut atlas_pos = match self.piece_type {
             ChessPiece::Pawn => 3,
@@ -388,6 +505,6 @@ impl Piece {
             rotation: 0.0, flip_x: false, flip_y: false, pivot: None
         };
 
-        draw_texture_ex(atlas_tex, self.col.x, self.col.y, WHITE, params);
+        draw_texture_ex(*atlas_tex, self.col.x, self.col.y, WHITE, params);
     }
 }
