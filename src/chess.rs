@@ -531,13 +531,12 @@ impl GameState {
         board
     }
 
-    pub fn perform_move(&mut self, chess_move: Move) -> Result<(), MoveError> {
+    pub fn perform_move(&mut self, mut chess_move: Move) -> Result<(), MoveError> {
         //performs all move validation here. If it is legal,
         //    the move is added to self.moves
 
 
         let board = self.get_board();
-        let mut is_en_passant = false;
 
 
         // pass last move to is_piece_move_legal to check for en passant if necessary
@@ -555,10 +554,14 @@ impl GameState {
                     return Err(MoveError::TileFromIsEnemyPiece);
                 }
 
+                let mut is_en_passant = false;
+
                 // 3: Is the move legal according to how the piece moves?
                 if !is_piece_move_legal(piece, tile_from, tile_to, last_move, &board, &mut is_en_passant) {
                     return Err(MoveError::PieceDoesNotMoveLikeThat);
                 }
+
+                chess_move = Move::PieceMove{piece:piece_type, tile_from, tile_to, is_en_passant};
 
                 // promotion check: error if it is a pawn move that reached the back rank_spec
                 let tile_to_coord = Coord::from(tile_to);
@@ -585,7 +588,7 @@ impl GameState {
                 }
 
                 // 3: Is the move legal according to how the piece moves?
-                if !is_piece_move_legal(piece, tile_from, tile_to, last_move, &board, &mut is_en_passant) {
+                if !is_piece_move_legal(piece, tile_from, tile_to, last_move, &board, &mut false) {
                     return Err(MoveError::PieceDoesNotMoveLikeThat);
                 }
 

@@ -9,30 +9,106 @@ use crate::chess::{
     Move,
     Board,
     MoveError,
-    is_piece_move_legal,
-    TeamedChessPiece,
     GameEndState
 };
 use macroquad::prelude::*;
 use macroquad::input;
 
+const PIECE_DISPLAY_SIZE: f32 = 80.0;
+const BOARD_PADDING: f32 = 30.0;
+
+const PIECE_TEXTURES: [&str; 33] = [
+    "assets/pieces/neo.png",
+    "assets/pieces/8_bit.png",
+    "assets/pieces/alpha.png",
+    "assets/pieces/bases.png",
+    "assets/pieces/book.png",
+    "assets/pieces/bubblegum.png",
+    "assets/pieces/cases.png",
+    "assets/pieces/classic.png",
+    "assets/pieces/club.png",
+    "assets/pieces/condal.png",
+    "assets/pieces/dash.png",
+    "assets/pieces/game_room.png",
+    "assets/pieces/glass.png",
+    "assets/pieces/gothic.png",
+    "assets/pieces/graffiti.png",
+    "assets/pieces/icy_sea.png",
+    "assets/pieces/light.png",
+    "assets/pieces/lolz.png",
+    "assets/pieces/marble.png",
+    "assets/pieces/maya.png",
+    "assets/pieces/metal.png",
+    "assets/pieces/modern.png",
+    "assets/pieces/nature.png",
+    "assets/pieces/neon.png",
+    "assets/pieces/neo_wood.png",
+    "assets/pieces/newspaper.png",
+    "assets/pieces/ocean.png",
+    "assets/pieces/sky.png",
+    "assets/pieces/space.png",
+    "assets/pieces/tigers.png",
+    "assets/pieces/tournament.png",
+    "assets/pieces/vintage.png",
+    "assets/pieces/wood.png",
+];
+
+const BOARD_TEXTURES: [&str;33] = [
+    "assets/boards/8_bit.png",
+    "assets/boards/bases.png",
+    "assets/boards/blue.png",
+    "assets/boards/brown.png",
+    "assets/boards/bubblegum.png",
+    "assets/boards/burled_wood.png",
+    "assets/boards/christmas.png",
+    "assets/boards/christmas_alt.png",
+    "assets/boards/dark_wood.png",
+    "assets/boards/dash.png",
+    "assets/boards/glass.png",
+    "assets/boards/graffiti.png",
+    "assets/boards/green.png",
+    "assets/boards/icy_sea.png",
+    "assets/boards/light.png",
+    "assets/boards/lolz.png",
+    "assets/boards/marble.png",
+    "assets/boards/metal.png",
+    "assets/boards/neon.png",
+    "assets/boards/newpaper.png",
+    "assets/boards/orange.png",
+    "assets/boards/overlay.png",
+    "assets/boards/parchment.png",
+    "assets/boards/purple.png",
+    "assets/boards/red.png",
+    "assets/boards/sand.png",
+    "assets/boards/sea.png",
+    "assets/boards/sky.png",
+    "assets/boards/stone.png",
+    "assets/boards/tan.png",
+    "assets/boards/tournament.png",
+    "assets/boards/translucent.png",
+    "assets/boards/walnut.png"
+];
+
 pub fn get_mq_conf() -> Conf {
     Conf {
         window_title: String::from("Chess-rs"),
-        window_width: 500,
-        window_height: 500,
+        window_width: PIECE_DISPLAY_SIZE as i32 * 8 + BOARD_PADDING as i32 * 2,
+        window_height: PIECE_DISPLAY_SIZE as i32 * 8 + BOARD_PADDING as i32 * 2,
         fullscreen: false,
         ..Default::default()
     }
 }
 
 pub struct GfxState {
-    board_w: f32,
     dragged_piece_i: usize,
     is_dragged: bool,
     drag_offset: Vec2,
     board_col: ColBox,
-    pieces: Vec<Piece>
+    pieces: Vec<Piece>,
+    board_tex: Texture2D,
+    pieces_tex: Texture2D,
+    piece_tex_index: usize,
+    board_tex_index: usize,
 }
 
 fn get_board_coord(tile: Tile) -> Coord {
@@ -43,24 +119,32 @@ fn get_board_coord(tile: Tile) -> Coord {
 
 impl GfxState {
 
-    pub fn init(game: &GameState) -> GfxState {
+    pub async fn init(game: &GameState) -> GfxState {
 
-        let board_w : f32 = 400.0;
+        let piece_tex_index = 3;
+        let board_tex_index = 22;
 
         // let tex = load_texture("assets/smiley.png").await;
         let dragged_piece_i = 0;
         let is_dragged = false;
         let drag_offset = Vec2{x:0.0, y:0.0};
 
-        let board_col = ColBox {x: 30.0, y: 30.0, w: board_w, h: board_w};
+        let board_col = ColBox {x: BOARD_PADDING, y: BOARD_PADDING,
+                                w: PIECE_DISPLAY_SIZE * 8.0, h: PIECE_DISPLAY_SIZE * 8.0};
+
+        let board_tex = load_texture(BOARD_TEXTURES[board_tex_index]).await;
+        let pieces_tex = load_texture(PIECE_TEXTURES[piece_tex_index]).await;
 
         let mut state = GfxState {
-            board_w,
             drag_offset,
             dragged_piece_i,
             is_dragged,
             board_col,
-            pieces: vec![]
+            board_tex,
+            pieces_tex,
+            pieces: vec![],
+            piece_tex_index,
+            board_tex_index,
         };
 
         state.sync_board(&game.get_board());
@@ -115,17 +199,13 @@ impl GfxState {
         //promotion?
         else if piece.piece_type == ChessPiece::Pawn &&
             coord_to.y == finish_line {
+            // TODO(lucypero): Auto promotes to a queen for now
             the_move = Move::PieceMoveWithPromotion{tile_from, tile_to, promotion: ChessPiece::Queen};
         }
         //normal move
         else {
-            // TODO(lucypero): Auto promotes to a queen for now
-
-            //checking if it is en passant
-            let mut is_en_passant = false;
-            is_piece_move_legal(TeamedChessPiece(game.whose_turn(), ChessPiece::Pawn), tile_from, tile_to, game.get_last_move(), &game.get_board(), &mut is_en_passant);
-
-            the_move = Move::PieceMove{piece:piece.piece_type, tile_from, tile_to, is_en_passant};
+            // we pass false to is_en_passant every time because perform_move modifies the field if the move is actually en passant before executing it
+            the_move = Move::PieceMove{piece:piece.piece_type, tile_from, tile_to, is_en_passant: false};
         }
 
         game.perform_move(the_move)
@@ -149,13 +229,43 @@ impl GfxState {
         }
     }
 
-    pub fn draw(&mut self, game: &mut GameState) {
+    pub async fn draw(&mut self, game: &mut GameState) {
+
+        if input::is_key_pressed(KeyCode::B) {
+            self.board_tex_index +=1;
+            if self.board_tex_index >= BOARD_TEXTURES.len() {
+                self.board_tex_index = 0;
+            }
+
+            self.board_tex = load_texture(BOARD_TEXTURES[self.board_tex_index]).await;
+
+            println!("board tex: {}", BOARD_TEXTURES[self.board_tex_index]);
+        }
+
+        if input::is_key_pressed(KeyCode::P) {
+
+            self.piece_tex_index +=1;
+            if self.piece_tex_index >= PIECE_TEXTURES.len() {
+                self.piece_tex_index = 0;
+            }
+
+            self.pieces_tex = load_texture(PIECE_TEXTURES[self.piece_tex_index]).await;
+            println!("piece tex: {}", PIECE_TEXTURES[self.piece_tex_index]);
+        }
+
+
         clear_background(DARKBROWN);
 
         // draw_texture(tex, screen_width() / 2.0 , screen_height() / 2.0, WHITE);
         // draw_rectangle(col_box.x, col_box.y, col_box.w, col_box.h, BLUE);
-        self.board_col.draw(BROWN);
 
+        let board_params = DrawTextureParams { 
+            dest_size: Some(Vec2{x:self.board_col.w, y:self.board_col.h}), 
+            source: None,
+            rotation: 0.0, flip_x: false, flip_y: false, pivot: None
+        };
+
+        draw_texture_ex(self.board_tex, self.board_col.x, self.board_col.y, WHITE, board_params);
 
         if !input::is_mouse_button_down(MouseButton::Left) && self.is_dragged{
             // println!("dragged stopped!");
@@ -213,7 +323,7 @@ impl GfxState {
         }
 
         for piece in &self.pieces {
-            piece.draw();
+            piece.draw(self.pieces_tex);
         }
     }
 }
@@ -257,20 +367,27 @@ impl Piece {
         self.col.y = (board_col.h / 8.0) * (7 - self.pos.y) as f32 + board_col.y;
     }
 
-    fn draw(&self) {
+    fn draw(&self, atlas_tex: Texture2D) {
 
-        let color = match self.team {
-            ChessTeam::Black => BLACK,
-            ChessTeam::White => WHITE
+        let mut atlas_pos = match self.piece_type {
+            ChessPiece::Pawn => 3,
+            ChessPiece::Rook => 5,
+            ChessPiece::Knight => 2,
+            ChessPiece::Bishop => 0,
+            ChessPiece::Queen => 4,
+            ChessPiece::King => 1
         };
 
-        let text_color = match self.team {
-            ChessTeam::Black => WHITE,
-            ChessTeam::White => BLACK
+        if self.team == ChessTeam::White {
+            atlas_pos += 6;
+        }
+
+        let params = DrawTextureParams { 
+            dest_size: Some(Vec2{x:self.col.w, y:self.col.h}), 
+            source: Some(Rect{ x: 150.0 * atlas_pos as f32, y: 0.0, w: 150.0, h: 150.0}), 
+            rotation: 0.0, flip_x: false, flip_y: false, pivot: None
         };
 
-        self.col.draw(color);
-        let piece_str = format!("{}", self.piece_type);
-        draw_text(piece_str.as_str(), self.col.x, self.col.y + self.col.h / 2.0, 15.0, text_color);
+        draw_texture_ex(atlas_tex, self.col.x, self.col.y, WHITE, params);
     }
 }

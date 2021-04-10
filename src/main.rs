@@ -27,14 +27,14 @@ async fn main() {
 
     // game_cli_loop(&mut game);
 
-    let mut gfx_state = graphics::GfxState::init(&game);
+    let mut gfx_state = graphics::GfxState::init(&game).await;
 
     loop {
-        game_loop(&mut game, &mut gfx_state);
+        game_loop(&mut game, &mut gfx_state).await;
         macroquad::prelude::next_frame().await
     }
 }
 
-fn game_loop(game: &mut GameState, gfx_state: &mut graphics::GfxState) {
-    gfx_state.draw(game);
+async fn game_loop(game: &mut GameState, gfx_state: &mut graphics::GfxState) {
+    gfx_state.draw(game).await
 }
