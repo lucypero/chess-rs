@@ -3,11 +3,9 @@
 **WIP**
 
 An implementation of the game of chess written in Rust.
+Uses [macroquad](https://github.com/not-fl3/macroquad) for graphics rendering and input.
 
-For now, it is a CLI program that shows the board state in ASCII, and the player inputs their moves in [standard chess notation](https://en.wikipedia.org/wiki/Algebraic_notation_(chess))
+## goals
 
-
-## Goals
-
-- actual graphics
-- a good user interface, like [Lichess](https://lichess.org/)
+- online multiplayer
+- some kind of AI rival
