@@ -10,3 +10,7 @@ edition = "2018"
 num_enum = "0.5.*"
 ansi_term = "0.12.1"
 macroquad = "0.3.0-alpha.17"
+
+[features]
+default = ["assets"]
+assets = []
