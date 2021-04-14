@@ -10,7 +10,6 @@ use std::fmt;
 use std::io::{self, BufRead};
 use std::ops;
 
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ChessTeam {
     Black,
@@ -40,7 +39,12 @@ impl fmt::Display for ChessTeam {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ChessPiece {
-    Pawn, Rook, Knight, Bishop, Queen, King
+    Pawn,
+    Rook,
+    Knight,
+    Bishop,
+    Queen,
+    King,
 }
 
 impl fmt::Display for ChessPiece {
@@ -58,8 +62,7 @@ impl fmt::Display for ChessPiece {
     }
 }
 
-
-// NOTE(lucypero): Most of these will never happen because most of these cases 
+// NOTE(lucypero): Most of these will never happen because most of these cases
 //   are caught by MoveParseError (assuming we use chess move notation as input)
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum MoveError {
@@ -77,7 +80,7 @@ pub enum MoveError {
     PromotionWrongPiece,
     //Can't castle. The player has no castling rights
     CastlingNoRights,
-    //Can't castle. The tiles in between are not free 
+    //Can't castle. The tiles in between are not free
     CastlingTilesInBetweenNotFree,
     //Can't castle while in or through check.
     CastlingThroughCheck,
@@ -91,11 +94,22 @@ impl fmt::Display for MoveError {
             MoveError::TileFromIsEmpty => write!(f, "there is nothing at that tile!"),
             MoveError::TileFromIsEnemyPiece => write!(f, "hey! you can only grab your own pieces!"),
             MoveError::PieceDoesNotMoveLikeThat => write!(f, "That piece does not move that way."),
-            MoveError::PromotionPieceNotSpecified => write!(f, "You must specify the promotion piece. e.g: e8=q"),
-            MoveError::PromotionNotLegal => write!(f, "The pawn has to reach the back rank to promote."),
-            MoveError::PromotionWrongPiece => write!(f, "You can't promote to a pawn or a king... try another piece."),
-            MoveError::CastlingNoRights => write!(f, "Can't castle. The player has no castling rights."),
-            MoveError::CastlingTilesInBetweenNotFree => write!(f, "Can't castle. The tiles in between are not free."),
+            MoveError::PromotionPieceNotSpecified => {
+                write!(f, "You must specify the promotion piece. e.g: e8=q")
+            }
+            MoveError::PromotionNotLegal => {
+                write!(f, "The pawn has to reach the back rank to promote.")
+            }
+            MoveError::PromotionWrongPiece => write!(
+                f,
+                "You can't promote to a pawn or a king... try another piece."
+            ),
+            MoveError::CastlingNoRights => {
+                write!(f, "Can't castle. The player has no castling rights.")
+            }
+            MoveError::CastlingTilesInBetweenNotFree => {
+                write!(f, "Can't castle. The tiles in between are not free.")
+            }
             MoveError::CastlingThroughCheck => write!(f, "Can't castle while in or through check."),
             MoveError::InCheck => write!(f, "Your King would be in check. King can't be in check."),
         }
@@ -289,32 +303,30 @@ pub struct TeamedChessPiece(pub ChessTeam, pub ChessPiece);
 
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive, Hash, Copy, Clone)]
 #[repr(u32)]
+#[rustfmt::skip]
 pub enum Tile {
-    A8, B8, C8, D8, E8, F8, G8, H8, A7, B7, C7, D7, E7, F7, G7, H7,
-    A6, B6, C6, D6, E6, F6, G6, H6, A5, B5, C5, D5, E5, F5, G5, H5,
-    A4, B4, C4, D4, E4, F4, G4, H4, A3, B3, C3, D3, E3, F3, G3, H3,
+    A8, B8, C8, D8, E8, F8, G8, H8, A7, B7, C7, D7, E7, F7, G7, H7, A6, B6, C6, D6, E6, F6, G6, H6,
+    A5, B5, C5, D5, E5, F5, G5, H5, A4, B4, C4, D4, E4, F4, G4, H4, A3, B3, C3, D3, E3, F3, G3, H3,
     A2, B2, C2, D2, E2, F2, G2, H2, A1, B1, C1, D1, E1, F1, G1, H1,
 }
 
+#[rustfmt::skip]
 impl fmt::Display for Tile {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let disp = match self {
-            Tile::A1 => "A1", Tile::A2 => "A2", Tile::A3 => "A3", Tile::A4 => "A4",
-            Tile::A5 => "A5", Tile::A6 => "A6", Tile::A7 => "A7", Tile::A8 => "A8",
-            Tile::B1 => "B1", Tile::B2 => "B2", Tile::B3 => "B3", Tile::B4 => "B4",
-            Tile::B5 => "B5", Tile::B6 => "B6", Tile::B7 => "B7", Tile::B8 => "B8",
-            Tile::C1 => "C1", Tile::C2 => "C2", Tile::C3 => "C3", Tile::C4 => "C4",
-            Tile::C5 => "C5", Tile::C6 => "C6", Tile::C7 => "C7", Tile::C8 => "C8",
-            Tile::D1 => "D1", Tile::D2 => "D2", Tile::D3 => "D3", Tile::D4 => "D4",
-            Tile::D5 => "D5", Tile::D6 => "D6", Tile::D7 => "D7", Tile::D8 => "D8",
-            Tile::E1 => "E1", Tile::E2 => "E2", Tile::E3 => "E3", Tile::E4 => "E4",
-            Tile::E5 => "E5", Tile::E6 => "E6", Tile::E7 => "E7", Tile::E8 => "E8",
-            Tile::F1 => "F1", Tile::F2 => "F2", Tile::F3 => "F3", Tile::F4 => "F4",
-            Tile::F5 => "F5", Tile::F6 => "F6", Tile::F7 => "F7", Tile::F8 => "F8",
-            Tile::G1 => "G1", Tile::G2 => "G2", Tile::G3 => "G3", Tile::G4 => "G4",
-            Tile::G5 => "G5", Tile::G6 => "G6", Tile::G7 => "G7", Tile::G8 => "G8",
-            Tile::H1 => "H1", Tile::H2 => "H2", Tile::H3 => "H3", Tile::H4 => "H4",
+            Tile::A1 => "A1", Tile::A2 => "A2", Tile::A3 => "A3", Tile::A4 => "A4", Tile::A5 => "A5",
+            Tile::A6 => "A6", Tile::A7 => "A7", Tile::A8 => "A8", Tile::B1 => "B1", Tile::B2 => "B2",
+            Tile::B3 => "B3", Tile::B4 => "B4", Tile::B5 => "B5", Tile::B6 => "B6", Tile::B7 => "B7",
+            Tile::B8 => "B8", Tile::C1 => "C1", Tile::C2 => "C2", Tile::C3 => "C3", Tile::C4 => "C4",
+            Tile::C5 => "C5", Tile::C6 => "C6", Tile::C7 => "C7", Tile::C8 => "C8", Tile::D1 => "D1",
+            Tile::D2 => "D2", Tile::D3 => "D3", Tile::D4 => "D4", Tile::D5 => "D5", Tile::D6 => "D6",
+            Tile::D7 => "D7", Tile::D8 => "D8", Tile::E1 => "E1", Tile::E2 => "E2", Tile::E3 => "E3",
+            Tile::E4 => "E4", Tile::E5 => "E5", Tile::E6 => "E6", Tile::E7 => "E7", Tile::E8 => "E8",
+            Tile::F1 => "F1", Tile::F2 => "F2", Tile::F3 => "F3", Tile::F4 => "F4", Tile::F5 => "F5",
+            Tile::F6 => "F6", Tile::F7 => "F7", Tile::F8 => "F8", Tile::G1 => "G1", Tile::G2 => "G2",
+            Tile::G3 => "G3", Tile::G4 => "G4", Tile::G5 => "G5", Tile::G6 => "G6", Tile::G7 => "G7",
+            Tile::G8 => "G8", Tile::H1 => "H1", Tile::H2 => "H2", Tile::H3 => "H3", Tile::H4 => "H4",
             Tile::H5 => "H5", Tile::H6 => "H6", Tile::H7 => "H7", Tile::H8 => "H8",
         };
 
@@ -425,12 +437,21 @@ impl fmt::Display for Move {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Move::PieceMove { piece, tile_from, tile_to , is_en_passant } => {
+            Move::PieceMove {
+                piece,
+                tile_from,
+                tile_to,
+                is_en_passant,
+            } => {
                 let mut en_passant_str = "";
                 if *is_en_passant {
                     en_passant_str = ", takes en passant";
                 }
-                write!(f, "Move: {} in {} to {}{}", piece, tile_from, tile_to, en_passant_str)
+                write!(
+                    f,
+                    "Move: {} in {} to {}{}",
+                    piece, tile_from, tile_to, en_passant_str
+                )
             }
             Move::PieceMoveWithPromotion {
                 tile_from,
@@ -472,7 +493,7 @@ impl GameState {
         }
     }
 
-    fn init_from_custom_position(board:Board) -> GameState {
+    fn init_from_custom_position(board: Board) -> GameState {
         GameState {
             moves: vec![],
             starting_board: board,
@@ -488,7 +509,11 @@ impl GameState {
 
         let team_pieces = board.find_pieces_of_team(self.whose_turn());
         for piece in team_pieces {
-            if !board.get_legal_moves_of_piece_in_tile(piece.1, self.get_last_move()).unwrap().is_empty() {
+            if !board
+                .get_legal_moves_of_piece_in_tile(piece.1, self.get_last_move())
+                .unwrap()
+                .is_empty()
+            {
                 has_legal_moves = true;
                 break;
             }
@@ -535,15 +560,18 @@ impl GameState {
         //performs all move validation here. If it is legal,
         //    the move is added to self.moves
 
-
         let board = self.get_board();
-
 
         // pass last move to is_piece_move_legal to check for en passant if necessary
         let last_move = self.moves.last().copied();
 
         match chess_move {
-            Move::PieceMove { piece: piece_type, tile_from, tile_to , is_en_passant: _} => {
+            Move::PieceMove {
+                piece: piece_type,
+                tile_from,
+                tile_to,
+                is_en_passant: _,
+            } => {
                 // 1: Is the player grabbing a piece?
                 let piece = board
                     .get_piece(tile_from)
@@ -557,26 +585,41 @@ impl GameState {
                 let mut is_en_passant = false;
 
                 // 3: Is the move legal according to how the piece moves?
-                if !is_piece_move_legal(piece, tile_from, tile_to, last_move, &board, &mut is_en_passant) {
+                if !is_piece_move_legal(
+                    piece,
+                    tile_from,
+                    tile_to,
+                    last_move,
+                    &board,
+                    &mut is_en_passant,
+                ) {
                     return Err(MoveError::PieceDoesNotMoveLikeThat);
                 }
 
-                chess_move = Move::PieceMove{piece:piece_type, tile_from, tile_to, is_en_passant};
+                chess_move = Move::PieceMove {
+                    piece: piece_type,
+                    tile_from,
+                    tile_to,
+                    is_en_passant,
+                };
 
                 // promotion check: error if it is a pawn move that reached the back rank_spec
                 let tile_to_coord = Coord::from(tile_to);
 
                 let back_rank = match self.whose_turn() {
                     ChessTeam::Black => 0,
-                    ChessTeam::White => 7
+                    ChessTeam::White => 7,
                 };
 
                 if piece_type == ChessPiece::Pawn && tile_to_coord.y == back_rank {
                     return Err(MoveError::PromotionPieceNotSpecified);
                 }
             }
-            Move::PieceMoveWithPromotion {tile_from, tile_to, promotion} => {
-
+            Move::PieceMoveWithPromotion {
+                tile_from,
+                tile_to,
+                promotion,
+            } => {
                 // 1: Is the player grabbing a piece?
                 let piece = board
                     .get_piece(tile_from)
@@ -597,7 +640,7 @@ impl GameState {
 
                 let back_rank = match self.whose_turn() {
                     ChessTeam::Black => 0,
-                    ChessTeam::White => 7
+                    ChessTeam::White => 7,
                 };
 
                 if tile_to_coord.y != back_rank {
@@ -615,14 +658,16 @@ impl GameState {
 
                 match self.whose_turn() {
                     ChessTeam::Black => {
-                        if (chess_move == Move::CastleShort && !board.castling_rights.2) ||        
-                            (chess_move == Move::CastleLong && !board.castling_rights.3) {
+                        if (chess_move == Move::CastleShort && !board.castling_rights.2)
+                            || (chess_move == Move::CastleLong && !board.castling_rights.3)
+                        {
                             return the_err;
                         }
                     }
                     ChessTeam::White => {
-                        if (chess_move == Move::CastleShort && !board.castling_rights.0) ||        
-                            (chess_move == Move::CastleLong && !board.castling_rights.1) {
+                        if (chess_move == Move::CastleShort && !board.castling_rights.0)
+                            || (chess_move == Move::CastleLong && !board.castling_rights.1)
+                        {
                             return the_err;
                         }
                     }
@@ -663,14 +708,14 @@ impl GameState {
                 let tiles_king = match self.whose_turn() {
                     ChessTeam::Black => {
                         if chess_move == Move::CastleShort {
-                            vec![Tile::E8, Tile::F8, Tile::G8] 
+                            vec![Tile::E8, Tile::F8, Tile::G8]
                         } else {
                             vec![Tile::C8, Tile::D8, Tile::E8]
                         }
                     }
                     ChessTeam::White => {
                         if chess_move == Move::CastleShort {
-                            vec![Tile::E1, Tile::F1, Tile::G1] 
+                            vec![Tile::E1, Tile::F1, Tile::G1]
                         } else {
                             vec![Tile::C1, Tile::D1, Tile::E1]
                         }
@@ -678,7 +723,8 @@ impl GameState {
                 };
 
                 for tile in tiles_king {
-                    if board.is_tile_attacked_by(self.whose_turn().the_other_one(), tile, last_move) {
+                    if board.is_tile_attacked_by(self.whose_turn().the_other_one(), tile, last_move)
+                    {
                         return Err(MoveError::CastlingThroughCheck);
                     }
                 }
@@ -694,7 +740,11 @@ impl GameState {
 
         //finding king tile
         let king_coord = future_board.find_pieces(self.whose_turn(), ChessPiece::King)[0];
-        if future_board.is_tile_attacked_by(self.whose_turn().the_other_one(), Tile::try_from(king_coord).unwrap(), Some(chess_move)) {
+        if future_board.is_tile_attacked_by(
+            self.whose_turn().the_other_one(),
+            Tile::try_from(king_coord).unwrap(),
+            Some(chess_move),
+        ) {
             return Err(MoveError::InCheck);
         }
 
@@ -719,9 +769,8 @@ impl GameState {
 // functions that process moves from user input
 mod move_processor {
 
-
     // Errors while parsing move
-    
+
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub enum MoveParseError {
         //Move is ambiguous. More than one of that piece type can move there. Try specifying the rank and/or file of the piece.
@@ -850,7 +899,10 @@ mod move_processor {
         Ok(rank_coord.unwrap() as i32)
     }
 
-    fn get_non_pawn_move(the_move: move_parser::Move, board: &Board) -> Result<Move, MoveParseError> {
+    fn get_non_pawn_move(
+        the_move: move_parser::Move,
+        board: &Board,
+    ) -> Result<Move, MoveParseError> {
         let piece = match the_move.primary {
             move_parser::MovePrimary::PieceMove {
                 piece: p,
@@ -894,12 +946,21 @@ mod move_processor {
             std::cmp::Ordering::Less => Err(MoveParseError::NoPiece),
             std::cmp::Ordering::Equal => {
                 let tile_from = Tile::try_from(pieces[0]).unwrap();
-                Ok(Move::PieceMove { piece, tile_from, tile_to, is_en_passant: false})
+                Ok(Move::PieceMove {
+                    piece,
+                    tile_from,
+                    tile_to,
+                    is_en_passant: false,
+                })
             }
         }
     }
 
-    fn get_pawn_capture(the_move: move_parser::Move, last_move: Option<Move>, board: &Board) -> Result<Move, MoveParseError> {
+    fn get_pawn_capture(
+        the_move: move_parser::Move,
+        last_move: Option<Move>,
+        board: &Board,
+    ) -> Result<Move, MoveParseError> {
         let mut file_from = '-';
         let mut destination = ('-', '-');
         let mut promotion = '-';
@@ -908,7 +969,8 @@ mod move_processor {
             piece,
             destination: d,
             promotion: p,
-        } = the_move.primary {
+        } = the_move.primary
+        {
             destination = d;
             promotion = p;
             file_from = piece.1
@@ -924,8 +986,8 @@ mod move_processor {
 
         let file_from = file_to_coord(file_from).unwrap();
 
-        let mut tile_from : Option<Tile> = None;
-        let mut tile_to : Option<Tile> = None;
+        let mut tile_from: Option<Tile> = None;
+        let mut tile_to: Option<Tile> = None;
 
         let mut is_en_passant = false;
 
@@ -934,21 +996,32 @@ mod move_processor {
             board.find_pieces_in_file(board.whose_turn, ChessPiece::Pawn, file_from);
         //2. filter pawns by if they can take a piece on file the_move.primary.destination.2, or on tile if it is specified
         pawns.retain(|&p| {
-
             let coord_pawn_target = Coord {
                 x: file,
                 y: p.y + team_factor,
             };
 
             // if the rank is specified, test if it is the same as coord_pawn_target
-            if rank.is_ok() && ((Coord { x: file, y: rank.unwrap()}) != coord_pawn_target) {
+            if rank.is_ok()
+                && ((Coord {
+                    x: file,
+                    y: rank.unwrap(),
+                }) != coord_pawn_target)
+            {
                 return false;
             }
 
             tile_from = Some(Tile::try_from(p).unwrap());
             tile_to = Some(Tile::try_from(coord_pawn_target).unwrap());
 
-            is_piece_move_legal(TeamedChessPiece(board.whose_turn, ChessPiece::Pawn), tile_from.unwrap(), tile_to.unwrap(), last_move, board, &mut is_en_passant)
+            is_piece_move_legal(
+                TeamedChessPiece(board.whose_turn, ChessPiece::Pawn),
+                tile_from.unwrap(),
+                tile_to.unwrap(),
+                last_move,
+                board,
+                &mut is_en_passant,
+            )
         });
 
         //3. if more than one pawn can take, return error "need to specify tile to take"
@@ -961,8 +1034,6 @@ mod move_processor {
                 let tile_to = tile_to.unwrap();
 
                 if promotion != '-' {
-
-
                     let promoted_piece_type = get_piece(promotion).unwrap();
                     Ok(Move::PieceMoveWithPromotion {
                         tile_from,
@@ -970,7 +1041,12 @@ mod move_processor {
                         promotion: promoted_piece_type,
                     })
                 } else {
-                    Ok(Move::PieceMove { piece: ChessPiece::Pawn, tile_from, tile_to, is_en_passant})
+                    Ok(Move::PieceMove {
+                        piece: ChessPiece::Pawn,
+                        tile_from,
+                        tile_to,
+                        is_en_passant,
+                    })
                 }
             }
         }
@@ -1001,7 +1077,7 @@ mod move_processor {
                     piece: ChessPiece::Pawn,
                     tile_from: Tile::try_from(coord_from).unwrap(),
                     tile_to: Tile::try_from(coord_dest).unwrap(),
-                    is_en_passant: false
+                    is_en_passant: false,
                 });
             }
         }
@@ -1090,9 +1166,8 @@ pub fn is_piece_move_legal(
     tile_to: Tile,
     last_move: Option<Move>,
     board: &Board,
-    is_en_passant: &mut bool
+    is_en_passant: &mut bool,
 ) -> bool {
-
     *is_en_passant = false;
 
     let tile_from_coord = Coord::from(tile_from);
@@ -1158,21 +1233,46 @@ pub fn is_piece_move_legal(
                     }
                 }
                 //en passant
-                else if (board.whose_turn == ChessTeam::Black && tile_to_coord.y == 2) ||
-                        (board.whose_turn == ChessTeam::White && tile_to_coord.y == 5) {
-
+                else if (board.whose_turn == ChessTeam::Black && tile_to_coord.y == 2)
+                    || (board.whose_turn == ChessTeam::White && tile_to_coord.y == 5)
+                {
                     // get last move
-                    if let Some(Move::PieceMove{piece: ChessPiece::Pawn, tile_from: last_tile_from, tile_to: last_tile_to, is_en_passant: _}) = last_move {
-
+                    if let Some(Move::PieceMove {
+                        piece: ChessPiece::Pawn,
+                        tile_from: last_tile_from,
+                        tile_to: last_tile_to,
+                        is_en_passant: _,
+                    }) = last_move
+                    {
                         let last_tile_from = Coord::from(last_tile_from);
                         let last_tile_to = Coord::from(last_tile_to);
 
-                        if (board.whose_turn == ChessTeam::Black && last_tile_from == Coord{x:tile_to_coord.x, y:1} && last_tile_to == Coord{x:tile_to_coord.x, y:3}) ||
-                            (board.whose_turn == ChessTeam::White && last_tile_from == Coord{x:tile_to_coord.x, y:6} && last_tile_to == Coord{x:tile_to_coord.x, y:4}) {
-
-                                //this is en pasant, return true
-                                *is_en_passant = true;
-                                return true;
+                        if (board.whose_turn == ChessTeam::Black
+                            && last_tile_from
+                                == Coord {
+                                    x: tile_to_coord.x,
+                                    y: 1,
+                                }
+                            && last_tile_to
+                                == Coord {
+                                    x: tile_to_coord.x,
+                                    y: 3,
+                                })
+                            || (board.whose_turn == ChessTeam::White
+                                && last_tile_from
+                                    == Coord {
+                                        x: tile_to_coord.x,
+                                        y: 6,
+                                    }
+                                && last_tile_to
+                                    == Coord {
+                                        x: tile_to_coord.x,
+                                        y: 4,
+                                    })
+                        {
+                            //this is en pasant, return true
+                            *is_en_passant = true;
+                            return true;
                         }
                     }
                 }
@@ -1183,96 +1283,46 @@ pub fn is_piece_move_legal(
         TeamedChessPiece(_, ChessPiece::King) => {
             let magn = coord_distance.magnitude();
 
-            //check movement
-            if magn.is_none() {
-                return false;
-            }
-
+            !(magn.is_none() ||
             //magnitude has to be one
-            let magn = magn.unwrap();
-            if magn != 1 {
-                return false;
-            }
-
+              (magn.unwrap() != 1) ||
             //check if there is a friendly piece in the way
-            if !board.is_path_clear(piece, tile_from, tile_to) {
-                return false;
-            }
-
-            true
+              (!board.is_path_clear(piece, tile_from, tile_to)))
         }
         TeamedChessPiece(_, ChessPiece::Rook) => {
             let magn = coord_distance.magnitude();
 
             //check movement
-            if magn.is_none() {
-                return false;
-            }
-
+            !(magn.is_none() || 
             //line has to be a horizontal or vertical line
-            if !(coord_distance.x == 0 || coord_distance.y == 0) {
-                return false;
-            }
-
+              (!(coord_distance.x == 0 || coord_distance.y == 0)) ||
             //check if there is a friendly piece in the way
-            if !board.is_path_clear(piece, tile_from, tile_to) {
-                return false;
-            }
-
-            true
+              (!board.is_path_clear(piece, tile_from, tile_to)))
         }
         TeamedChessPiece(_, ChessPiece::Bishop) => {
             let magn = coord_distance.magnitude();
 
             //check movement
-            if magn.is_none() {
-                return false;
-            }
-
+            !(magn.is_none() ||
             //line has to be a diagonal
-            if coord_distance.x.abs() != coord_distance.y.abs() {
-                return false;
-            }
-
+               (coord_distance.x.abs() != coord_distance.y.abs()) ||
             //check if there is a friendly piece in the way
-            if !board.is_path_clear(piece, tile_from, tile_to) {
-                return false;
-            }
-
-            true
+               (!board.is_path_clear(piece, tile_from, tile_to)))
         }
         TeamedChessPiece(_, ChessPiece::Queen) => {
             let magn = coord_distance.magnitude();
 
             //check movement
-            if magn.is_none() {
-                return false;
-            }
-
-            // if magnitude returns something then it is a valid queen move
-
+            !(magn.is_none() ||
             //check if there is a friendly piece in the way
-            if !board.is_path_clear(piece, tile_from, tile_to) {
-                return false;
-            }
-
-            true
+              (!board.is_path_clear(piece, tile_from, tile_to)))
         }
         TeamedChessPiece(_, ChessPiece::Knight) => {
             //checking if the move is an L
-
-            if !((coord_distance.x.abs() == 2 && coord_distance.y.abs() == 1)
-                || (coord_distance.x.abs() == 1 && coord_distance.y.abs() == 2))
-            {
-                return false;
-            }
-
-            //check if there is a friendly piece in the way
-            if board.is_friendly_piece_at_destination(piece, tile_to) {
-                return false;
-            }
-
-            true
+            !(!((coord_distance.x.abs() == 2 && coord_distance.y.abs() == 1)
+                || (coord_distance.x.abs() == 1 && coord_distance.y.abs() == 2)) ||
+            //check if there is a friendly piece at destination
+             (board.is_friendly_piece_at_destination(piece, tile_to)))
         }
     }
 }
@@ -1283,7 +1333,7 @@ pub fn is_piece_move_legal(
 pub struct Board {
     pub whose_turn: ChessTeam,
     piece_locations: HashMap<Tile, TeamedChessPiece>,
-    castling_rights: (bool,bool,bool,bool) // (white short castle, white long castle, black short castle, black long castle)
+    castling_rights: (bool, bool, bool, bool), // (white short castle, white long castle, black short castle, black long castle)
 }
 
 impl Board {
@@ -1425,7 +1475,7 @@ impl Board {
         Board {
             whose_turn: ChessTeam::White,
             piece_locations,
-            castling_rights: (true, true, true, true)
+            castling_rights: (true, true, true, true),
         }
     }
 
@@ -1438,11 +1488,10 @@ impl Board {
     }
 
     pub fn find_pieces_of_team(&self, team: ChessTeam) -> Vec<(TeamedChessPiece, Tile)> {
-
         let mut result = vec![];
 
         for piece in &self.piece_locations {
-            if piece.1.0 == team {
+            if piece.1 .0 == team {
                 result.push((*piece.1, *piece.0));
             }
         }
@@ -1460,8 +1509,11 @@ impl Board {
         result
     }
 
-    pub fn get_legal_moves_of_piece_in_tile(&self, tile: Tile, last_move: Option<Move>) -> Option<Vec<Coord>> {
-
+    pub fn get_legal_moves_of_piece_in_tile(
+        &self,
+        tile: Tile,
+        last_move: Option<Move>,
+    ) -> Option<Vec<Coord>> {
         let piece = self.get_piece(tile)?;
         let piece_type = piece.1;
 
@@ -1470,61 +1522,61 @@ impl Board {
         //1. get all the moves that the piece can make according to how it moves.
         //   disregarding if the piece can actually make that move in the board.
         //   all wrong moves will be filtered out later.
-        let mut moves : Vec<Coord> = vec![];
+        let mut moves: Vec<Coord> = vec![];
 
-        fn safe_coord_add(coord:Coord, moves: &mut Vec<Coord>) {
+        fn safe_coord_add(coord: Coord, moves: &mut Vec<Coord>) {
             if Tile::try_from(coord).is_ok() {
                 moves.push(coord);
             }
         }
 
-        fn add_horizontal_and_vertical(coord:Coord, moves: &mut Vec<Coord>) {
+        fn add_horizontal_and_vertical(coord: Coord, moves: &mut Vec<Coord>) {
             for i in 0..=7 {
-                moves.push(Coord{x:coord.x, y: i});
-                moves.push(Coord{x:i, y: coord.y});
+                moves.push(Coord { x: coord.x, y: i });
+                moves.push(Coord { x: i, y: coord.y });
             }
 
             // remove the tile where the piece is sitting on
             moves.retain(|c| *c != coord);
         }
 
-        fn add_diagonals(coord:Coord, moves: &mut Vec<Coord>) {
+        fn add_diagonals(coord: Coord, moves: &mut Vec<Coord>) {
             // diagonal that goes from coord to to right top
             for i in 1..=7 {
-                let possible_coord = coord + Coord{x:i, y:i};
+                let possible_coord = coord + Coord { x: i, y: i };
                 if Tile::try_from(possible_coord).is_ok() {
                     moves.push(possible_coord);
-                } else{
+                } else {
                     break;
                 }
             }
 
             // diagonal that goes from coord to left bottom
             for i in 1..=7 {
-                let possible_coord = coord + Coord{x:-i, y:-i};
+                let possible_coord = coord + Coord { x: -i, y: -i };
                 if Tile::try_from(possible_coord).is_ok() {
                     moves.push(possible_coord);
-                } else{
+                } else {
                     break;
                 }
             }
 
             // diagonal that goes from coord to left top
             for i in 1..=7 {
-                let possible_coord = coord + Coord{x:-i, y:i};
+                let possible_coord = coord + Coord { x: -i, y: i };
                 if Tile::try_from(possible_coord).is_ok() {
                     moves.push(possible_coord);
-                } else{
+                } else {
                     break;
                 }
             }
 
             // diagonal that goes from coord to right bottom
             for i in 1..=7 {
-                let possible_coord = coord + Coord{x:i, y:-i};
+                let possible_coord = coord + Coord { x: i, y: -i };
                 if Tile::try_from(possible_coord).is_ok() {
                     moves.push(possible_coord);
-                } else{
+                } else {
                     break;
                 }
             }
@@ -1535,15 +1587,43 @@ impl Board {
                 //1 or 2 moves ahead, and diagonally
                 let team_factor = match self.whose_turn {
                     ChessTeam::Black => -1,
-                    ChessTeam::White => 1
+                    ChessTeam::White => 1,
                 };
 
                 // 1 and 2 moves ahead
-                safe_coord_add(coord_from + Coord{x:0, y:team_factor}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:0, y:2 * team_factor}, &mut moves);
+                safe_coord_add(
+                    coord_from
+                        + Coord {
+                            x: 0,
+                            y: team_factor,
+                        },
+                    &mut moves,
+                );
+                safe_coord_add(
+                    coord_from
+                        + Coord {
+                            x: 0,
+                            y: 2 * team_factor,
+                        },
+                    &mut moves,
+                );
                 // diagonals
-                safe_coord_add(coord_from + Coord{x:1, y:team_factor}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:-1, y:team_factor}, &mut moves);
+                safe_coord_add(
+                    coord_from
+                        + Coord {
+                            x: 1,
+                            y: team_factor,
+                        },
+                    &mut moves,
+                );
+                safe_coord_add(
+                    coord_from
+                        + Coord {
+                            x: -1,
+                            y: team_factor,
+                        },
+                    &mut moves,
+                );
             }
             ChessPiece::Rook => {
                 // all other tiles on its file and rank
@@ -1551,14 +1631,14 @@ impl Board {
             }
             ChessPiece::Knight => {
                 // the L's
-                safe_coord_add(coord_from + Coord{x:1, y: 2}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:-1, y: 2}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:2, y: 1}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:2, y: -1}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:-2, y: 1}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:-2, y: -1}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:1, y: -2}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:-1, y: -2}, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 1, y: 2 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: -1, y: 2 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 2, y: 1 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 2, y: -1 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: -2, y: 1 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: -2, y: -1 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 1, y: -2 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: -1, y: -2 }, &mut moves);
             }
             ChessPiece::Bishop => {
                 // all other tiles on its diagonals
@@ -1570,35 +1650,43 @@ impl Board {
                 add_diagonals(coord_from, &mut moves);
             }
             ChessPiece::King => {
-                safe_coord_add(coord_from + Coord{x:-1, y: 1}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:0, y: 1}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:1, y: 1}, &mut moves);
+                safe_coord_add(coord_from + Coord { x: -1, y: 1 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 0, y: 1 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 1, y: 1 }, &mut moves);
 
-                safe_coord_add(coord_from + Coord{x:-1, y: 0}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:0, y: 0}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:1, y: 0}, &mut moves);
+                safe_coord_add(coord_from + Coord { x: -1, y: 0 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 0, y: 0 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 1, y: 0 }, &mut moves);
 
-                safe_coord_add(coord_from + Coord{x:-1, y: -1}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:0, y: -1}, &mut moves);
-                safe_coord_add(coord_from + Coord{x:1, y: -1}, &mut moves);
+                safe_coord_add(coord_from + Coord { x: -1, y: -1 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 0, y: -1 }, &mut moves);
+                safe_coord_add(coord_from + Coord { x: 1, y: -1 }, &mut moves);
             }
         }
 
         //2. filter out all moves where !is_legal_move
         moves.retain(|coord_to| {
-            is_piece_move_legal(piece, tile, Tile::try_from(*coord_to).unwrap(), last_move, &self, &mut false)
+            is_piece_move_legal(
+                piece,
+                tile,
+                Tile::try_from(*coord_to).unwrap(),
+                last_move,
+                &self,
+                &mut false,
+            )
         });
 
         //3. filter out all moves that put the king in check
         moves.retain(|coord_to| {
+            let mut future_board: Board = self.clone();
 
-            let mut future_board : Board = self.clone();
-
-            //the move 
-            let the_move = Move::PieceMove{ piece: piece_type, 
+            //the move
+            let the_move = Move::PieceMove {
+                piece: piece_type,
                 tile_from: tile,
                 tile_to: Tile::try_from(*coord_to).unwrap(),
-                is_en_passant: false};
+                is_en_passant: false,
+            };
 
             // TODO(lucypero): castle moves. not sure if it is necessary.
 
@@ -1611,13 +1699,22 @@ impl Board {
         Some(moves)
     }
 
-    pub fn is_team_in_check(&self, team: ChessTeam, last_move: Option<Move>) -> bool{
+    pub fn is_team_in_check(&self, team: ChessTeam, last_move: Option<Move>) -> bool {
         let king_coord = self.find_pieces(team, ChessPiece::King)[0];
-        self.is_tile_attacked_by(team.the_other_one(), Tile::try_from(king_coord).unwrap(), last_move)
+        self.is_tile_attacked_by(
+            team.the_other_one(),
+            Tile::try_from(king_coord).unwrap(),
+            last_move,
+        )
     }
 
     //check if tile is being under attack by any piece in team
-    pub fn is_tile_attacked_by(&self, team: ChessTeam, tile: Tile, last_move: Option<Move>) -> bool {
+    pub fn is_tile_attacked_by(
+        &self,
+        team: ChessTeam,
+        tile: Tile,
+        last_move: Option<Move>,
+    ) -> bool {
         //.1 get all pieces of team
         let pieces = self.find_pieces_of_team(team);
 
@@ -1660,13 +1757,17 @@ impl Board {
 
     pub fn apply_move(&mut self, chess_move: Move) {
         match chess_move {
-            Move::PieceMove { piece: piece_type, tile_from, tile_to, is_en_passant } => {
+            Move::PieceMove {
+                piece: piece_type,
+                tile_from,
+                tile_to,
+                is_en_passant,
+            } => {
                 let piece = self.piece_locations.remove(&tile_from).unwrap();
                 self.piece_locations.insert(tile_to, piece);
 
                 //must remove captured pawn if en_passant
                 if is_en_passant {
-
                     let mut captured_pawn_coord = Coord::from(tile_to);
                     match self.whose_turn {
                         ChessTeam::Black => {
@@ -1676,7 +1777,8 @@ impl Board {
                             captured_pawn_coord.y -= 1;
                         }
                     }
-                    self.piece_locations.remove(&Tile::try_from(captured_pawn_coord).unwrap());
+                    self.piece_locations
+                        .remove(&Tile::try_from(captured_pawn_coord).unwrap());
                 }
 
                 //update castling rights if necessary
@@ -1685,19 +1787,16 @@ impl Board {
                         ChessTeam::Black => {
                             if tile_from == Tile::A8 {
                                 self.castling_rights.3 = false;
-                            }
-                            else if tile_from == Tile::H8 {
+                            } else if tile_from == Tile::H8 {
                                 self.castling_rights.2 = false;
                             }
                         }
                         ChessTeam::White => {
                             if tile_from == Tile::A1 {
                                 self.castling_rights.1 = false;
-                            }
-                            else if tile_from == Tile::H1 {
+                            } else if tile_from == Tile::H1 {
                                 self.castling_rights.0 = false;
                             }
-
                         }
                     }
                 }
@@ -1724,51 +1823,70 @@ impl Board {
                 self.piece_locations
                     .insert(tile_to, TeamedChessPiece(self.whose_turn, promotion));
             }
-            Move::CastleShort => {
+            Move::CastleShort => match self.whose_turn {
+                ChessTeam::Black => {
+                    self.piece_locations.remove(&Tile::H8);
+                    self.piece_locations.remove(&Tile::E8);
+                    self.piece_locations.insert(
+                        Tile::F8,
+                        TeamedChessPiece(self.whose_turn, ChessPiece::Rook),
+                    );
+                    self.piece_locations.insert(
+                        Tile::G8,
+                        TeamedChessPiece(self.whose_turn, ChessPiece::King),
+                    );
 
-                match self.whose_turn {
-                    ChessTeam::Black => {
-                        self.piece_locations.remove(&Tile::H8);
-                        self.piece_locations.remove(&Tile::E8);
-                        self.piece_locations.insert(Tile::F8, TeamedChessPiece(self.whose_turn, ChessPiece::Rook));
-                        self.piece_locations.insert(Tile::G8, TeamedChessPiece(self.whose_turn, ChessPiece::King));
-
-                        self.castling_rights.2 = false;
-                        self.castling_rights.3 = false;
-                    }
-                    ChessTeam::White => {
-                        self.piece_locations.remove(&Tile::H1);
-                        self.piece_locations.remove(&Tile::E1);
-                        self.piece_locations.insert(Tile::F1, TeamedChessPiece(self.whose_turn, ChessPiece::Rook));
-                        self.piece_locations.insert(Tile::G1, TeamedChessPiece(self.whose_turn, ChessPiece::King));
-
-                        self.castling_rights.0 = false;
-                        self.castling_rights.1 = false;
-                    }
+                    self.castling_rights.2 = false;
+                    self.castling_rights.3 = false;
                 }
-            }
-            Move::CastleLong => {
-                match self.whose_turn {
-                    ChessTeam::Black => {
-                        self.piece_locations.remove(&Tile::A8);
-                        self.piece_locations.remove(&Tile::E8);
-                        self.piece_locations.insert(Tile::D8, TeamedChessPiece(self.whose_turn, ChessPiece::Rook));
-                        self.piece_locations.insert(Tile::C8, TeamedChessPiece(self.whose_turn, ChessPiece::King));
+                ChessTeam::White => {
+                    self.piece_locations.remove(&Tile::H1);
+                    self.piece_locations.remove(&Tile::E1);
+                    self.piece_locations.insert(
+                        Tile::F1,
+                        TeamedChessPiece(self.whose_turn, ChessPiece::Rook),
+                    );
+                    self.piece_locations.insert(
+                        Tile::G1,
+                        TeamedChessPiece(self.whose_turn, ChessPiece::King),
+                    );
 
-                        self.castling_rights.2 = false;
-                        self.castling_rights.3 = false;
-                    }
-                    ChessTeam::White => {
-                        self.piece_locations.remove(&Tile::A1);
-                        self.piece_locations.remove(&Tile::E1);
-                        self.piece_locations.insert(Tile::D1, TeamedChessPiece(self.whose_turn, ChessPiece::Rook));
-                        self.piece_locations.insert(Tile::C1, TeamedChessPiece(self.whose_turn, ChessPiece::King));
-
-                        self.castling_rights.0 = false;
-                        self.castling_rights.1 = false;
-                    }
+                    self.castling_rights.0 = false;
+                    self.castling_rights.1 = false;
                 }
-            }
+            },
+            Move::CastleLong => match self.whose_turn {
+                ChessTeam::Black => {
+                    self.piece_locations.remove(&Tile::A8);
+                    self.piece_locations.remove(&Tile::E8);
+                    self.piece_locations.insert(
+                        Tile::D8,
+                        TeamedChessPiece(self.whose_turn, ChessPiece::Rook),
+                    );
+                    self.piece_locations.insert(
+                        Tile::C8,
+                        TeamedChessPiece(self.whose_turn, ChessPiece::King),
+                    );
+
+                    self.castling_rights.2 = false;
+                    self.castling_rights.3 = false;
+                }
+                ChessTeam::White => {
+                    self.piece_locations.remove(&Tile::A1);
+                    self.piece_locations.remove(&Tile::E1);
+                    self.piece_locations.insert(
+                        Tile::D1,
+                        TeamedChessPiece(self.whose_turn, ChessPiece::Rook),
+                    );
+                    self.piece_locations.insert(
+                        Tile::C1,
+                        TeamedChessPiece(self.whose_turn, ChessPiece::King),
+                    );
+
+                    self.castling_rights.0 = false;
+                    self.castling_rights.1 = false;
+                }
+            },
         }
 
         self.whose_turn = self.whose_turn.the_other_one();
@@ -1865,7 +1983,6 @@ impl Board {
 
 // this is basically the terminal interface of the game
 fn game_cli_loop(game: &mut GameState) {
-
     //read move from stdin, you write the move and press enter
     println!("Welcome to chess! Type !help for all the commands");
 
@@ -1891,7 +2008,8 @@ fn game_cli_loop(game: &mut GameState) {
             let command = line.split_off(1);
             match command.as_str() {
                 "help" => {
-                    print!(r#"
+                    print!(
+                        r#"
 Welcome to chess!
 Just type the move you want to make! (in algebraic chess notation: https://en.wikipedia.org/wiki/Algebraic_notation_(chess))
 
@@ -1900,7 +2018,8 @@ Available commands:
 !help - show this dialog
 !move_count - show how many moves were made
 !test: test command
-"#);
+"#
+                    );
                 }
                 "move_count" => {
                     println!(
@@ -1937,7 +2056,10 @@ Available commands:
             //move done successfully. check for end game condition
             match game.get_end_state() {
                 GameEndState::Checkmate => {
-                    println!("It's checkmate! {} has won!", game.whose_turn().the_other_one());
+                    println!(
+                        "It's checkmate! {} has won!",
+                        game.whose_turn().the_other_one()
+                    );
                     break;
                 }
                 GameEndState::Stalemate => {
@@ -1963,21 +2085,41 @@ pub fn get_test(args: Vec<String>) -> Option<GameState> {
         #[allow(clippy::single_match)]
         match test_arg.as_str() {
             "promotion-test" => {
-
                 let mut piece_locations = HashMap::new();
 
-                piece_locations.insert(Tile::A1, TeamedChessPiece(ChessTeam::White, ChessPiece::King));
-                piece_locations.insert(Tile::A8, TeamedChessPiece(ChessTeam::Black, ChessPiece::King));
-                piece_locations.insert(Tile::D7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
-                piece_locations.insert(Tile::E7, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
-                piece_locations.insert(Tile::D2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
-                piece_locations.insert(Tile::E2, TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn));
-                piece_locations.insert(Tile::H3, TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn));
+                piece_locations.insert(
+                    Tile::A1,
+                    TeamedChessPiece(ChessTeam::White, ChessPiece::King),
+                );
+                piece_locations.insert(
+                    Tile::A8,
+                    TeamedChessPiece(ChessTeam::Black, ChessPiece::King),
+                );
+                piece_locations.insert(
+                    Tile::D7,
+                    TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
+                );
+                piece_locations.insert(
+                    Tile::E7,
+                    TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
+                );
+                piece_locations.insert(
+                    Tile::D2,
+                    TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn),
+                );
+                piece_locations.insert(
+                    Tile::E2,
+                    TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn),
+                );
+                piece_locations.insert(
+                    Tile::H3,
+                    TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
+                );
 
                 let board = Board {
                     whose_turn: ChessTeam::White,
                     piece_locations,
-                    castling_rights: (false,false,false,false)
+                    castling_rights: (false, false, false, false),
                 };
 
                 return Some(GameState::init_from_custom_position(board));

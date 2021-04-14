@@ -2,8 +2,8 @@
 #![allow(dead_code)]
 
 mod chess;
-mod move_parser;
 mod graphics;
+mod move_parser;
 
 use chess::GameState;
 
