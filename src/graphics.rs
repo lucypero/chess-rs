@@ -164,8 +164,8 @@ impl GfxState {
 
     #[cfg(feature = "assets")]
     pub async fn init(game: &mut GameState) -> GfxState {
-        let piece_tex_index = 3;
-        let board_tex_index = 22;
+        let piece_tex_index = 5;
+        let board_tex_index = 14;
 
         let dragged_piece_i = 0;
         let is_dragged = false;
@@ -305,9 +305,7 @@ impl GfxState {
                 // TODO(lucypero): Yeah I panic just to end the program hah
                 panic!("nothing went wrong, it's just that the game ended");
             }
-            GameEndState::Running => {
-                print!("\n\n{} to move. What's your move? ...\n", game.whose_turn());
-            }
+            GameEndState::Running => {}
         }
     }
 
@@ -472,10 +470,7 @@ impl GfxState {
                 let res = self.attempt_move_execution(self.dragged_piece_i, board_coord, game);
 
                 if res.is_ok() {
-                    println!("Move Executed successfully!");
                     self.handle_end_state(game);
-                } else {
-                    println!("Move not valid");
                 }
             }
 
@@ -501,11 +496,12 @@ impl GfxState {
                     self.is_dragged = true;
 
                     // populate dragged legal moves
+                    let last_move = game.get_last_move();
                     let board = game.get_board();
                     self.dragged_legal_moves = board
                         .get_legal_moves_of_piece_in_tile(
                             Tile::try_from(self.pieces[i].pos).unwrap(),
-                            game.get_last_move(),
+                            last_move,
                         )
                         .unwrap();
 

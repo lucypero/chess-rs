@@ -504,16 +504,17 @@ impl GameState {
     }
 
     pub fn get_end_state(&mut self) -> GameEndState {
-        let board = self.get_board();
-
         // 1. check if team has any legal moves
 
         let mut has_legal_moves = false;
 
-        let team_pieces = board.find_pieces_of_team(self.whose_turn());
+        let whose_turn = self.whose_turn();
+        let last_move = self.get_last_move();
+
+        let team_pieces = self.get_board().find_pieces_of_team(whose_turn);
         for piece in team_pieces {
-            if !board
-                .get_legal_moves_of_piece_in_tile(piece.1, self.get_last_move())
+            if !self.get_board()
+                .get_legal_moves_of_piece_in_tile(piece.1, last_move)
                 .unwrap()
                 .is_empty()
             {
@@ -529,7 +530,7 @@ impl GameState {
 
         // 2. if team is in check, it is checkmate and current team has lost
         //    2.2 if not, it is stalemate
-        if board.is_team_in_check(self.whose_turn(), self.get_last_move()) {
+        if self.get_board().is_team_in_check(whose_turn, last_move) {
             GameEndState::Checkmate
         } else {
             GameEndState::Stalemate
@@ -547,31 +548,27 @@ impl GameState {
     //Returns the current board position
     // TODO(lucypero): Cache the board for subsequent calls to this on the same position
     //   will save a lot of cpu
-    pub fn get_board(&mut self) -> Board {
+    pub fn get_board(&mut self) -> &Board {
         //Start with the starting board position then you start mutating it with each
         //  move until you get the current position
-        if let Some(board) = &self.cached_current_board {
-            println!("board cache hit");
-            board.clone()
-        } else {
-            println!("building board from starting board");
+        if self.cached_current_board.is_none() {
             let mut board = self.starting_board.clone();
             for chess_move in self.moves.iter() {
                 board.apply_move(*chess_move);
             }
             self.cached_current_board = Some(board.clone());
-            board
         }
+
+        self.cached_current_board.as_ref().unwrap()
     }
 
     pub fn perform_move(&mut self, mut chess_move: Move) -> Result<(), MoveError> {
         //performs all move validation here. If it is legal,
         //    the move is added to self.moves
 
+        let whose_turn = self.whose_turn();
+        let last_move = self.get_last_move();
         let board = self.get_board();
-
-        // pass last move to is_piece_move_legal to check for en passant if necessary
-        let last_move = self.moves.last().copied();
 
         match chess_move {
             Move::PieceMove {
@@ -598,7 +595,7 @@ impl GameState {
                     tile_from,
                     tile_to,
                     last_move,
-                    &board,
+                    board,
                     &mut is_en_passant,
                 ) {
                     return Err(MoveError::PieceDoesNotMoveLikeThat);
@@ -614,7 +611,7 @@ impl GameState {
                 // promotion check: error if it is a pawn move that reached the back rank_spec
                 let tile_to_coord = Coord::from(tile_to);
 
-                let back_rank = match self.whose_turn() {
+                let back_rank = match whose_turn {
                     ChessTeam::Black => 0,
                     ChessTeam::White => 7,
                 };
@@ -646,7 +643,7 @@ impl GameState {
                 //rank has to be the back rank
                 let tile_to_coord = Coord::from(tile_to);
 
-                let back_rank = match self.whose_turn() {
+                let back_rank = match whose_turn {
                     ChessTeam::Black => 0,
                     ChessTeam::White => 7,
                 };
@@ -664,7 +661,7 @@ impl GameState {
                 //1. check if the player has castling rights
                 let the_err = Err(MoveError::CastlingNoRights);
 
-                match self.whose_turn() {
+                match whose_turn {
                     ChessTeam::Black => {
                         if (chess_move == Move::CastleShort && !board.castling_rights.2)
                             || (chess_move == Move::CastleLong && !board.castling_rights.3)
@@ -689,7 +686,7 @@ impl GameState {
                 // tiles in between for white, long castle: B1 C1 D1
                 // tiles in between for black, long castle: B8 C8 D8
 
-                let tiles_in_btw = match self.whose_turn() {
+                let tiles_in_btw = match whose_turn {
                     ChessTeam::Black => {
                         if chess_move == Move::CastleShort {
                             vec![Tile::F8, Tile::G8]
@@ -713,7 +710,7 @@ impl GameState {
                 }
 
                 //3. check if king is not in check and does not go through check
-                let tiles_king = match self.whose_turn() {
+                let tiles_king = match whose_turn {
                     ChessTeam::Black => {
                         if chess_move == Move::CastleShort {
                             vec![Tile::E8, Tile::F8, Tile::G8]
@@ -731,7 +728,7 @@ impl GameState {
                 };
 
                 for tile in tiles_king {
-                    if board.is_tile_attacked_by(self.whose_turn().the_other_one(), tile, last_move)
+                    if board.is_tile_attacked_by(whose_turn.the_other_one(), tile, last_move)
                     {
                         return Err(MoveError::CastlingThroughCheck);
                     }
@@ -742,7 +739,7 @@ impl GameState {
         // would the move put the player's king in check?
 
         // 1. get a hypothetical board where this move is performed anyway
-        let mut future_board = board;
+        let mut future_board = board.clone();
         future_board.apply_move(chess_move);
         // 2. in that board, check if the king is attacked
 
@@ -1108,6 +1105,7 @@ mod move_processor {
         let moves = moves.unwrap();
 
         //Processing parser output
+        let last_move = game.get_last_move();
         let board = game.get_board();
 
         let mut the_move: Option<Move> = None;
@@ -1133,7 +1131,7 @@ mod move_processor {
                     }
                     // pawn capture
                     else if piece.0 == '-' {
-                        piece_move = get_pawn_capture(move_i, game.get_last_move(), &board);
+                        piece_move = get_pawn_capture(move_i, last_move, &board);
                     }
                     // non-pawn move
                     else {
