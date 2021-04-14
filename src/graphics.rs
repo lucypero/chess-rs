@@ -287,7 +287,7 @@ impl GfxState {
     }
 
     #[cfg(feature = "assets")]
-    fn keys_swap_textures(&mut self) {
+    async fn keys_swap_textures(&mut self) {
         if input::is_key_pressed(KeyCode::B) {
             self.board_tex_index +=1;
             if self.board_tex_index >= BOARD_TEXTURES.len() {
@@ -335,7 +335,7 @@ impl GfxState {
     pub async fn draw(&mut self, game: &mut GameState) {
 
 
-        self.keys_swap_textures();
+        self.keys_swap_textures().await;
 
         clear_background(DARKBROWN);
 
