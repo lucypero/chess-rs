@@ -271,7 +271,7 @@ impl ops::Mul<i32> for Coord {
 
 impl Coord {
     //  other - self
-    fn distance(&self, other: Coord) -> Coord {
+    pub fn distance(&self, other: Coord) -> Coord {
         Coord {
             x: other.x - self.x,
             y: other.y - self.y,
@@ -281,7 +281,7 @@ impl Coord {
     // for now just return the highest component
     // Returns a value only if the vector is either a horizontal,
     //    vertical or diagonal line (←↑→↓↖↗↘↙), otherwise returns none
-    fn magnitude(&self) -> Option<i32> {
+    pub fn magnitude(&self) -> Option<i32> {
         if self.x == 0 || //vertical
             self.y == 0 || //horizontal
                 self.y.abs() == self.x.abs()
@@ -293,7 +293,7 @@ impl Coord {
         }
     }
 
-    fn unit(&self) -> Self {
+    pub fn unit(&self) -> Self {
         *self / self.magnitude().unwrap()
     }
 }
