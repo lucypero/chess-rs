@@ -477,6 +477,7 @@ impl fmt::Display for Move {
 pub struct GameState {
     moves: Vec<Move>,
     starting_board: Board,
+    cached_current_board: Option<Board>,
 }
 
 pub enum GameEndState {
@@ -490,6 +491,7 @@ impl GameState {
         GameState {
             moves: vec![],
             starting_board: Board::start_position(),
+            cached_current_board: None
         }
     }
 
@@ -497,10 +499,11 @@ impl GameState {
         GameState {
             moves: vec![],
             starting_board: board,
+            cached_current_board: None
         }
     }
 
-    pub fn get_end_state(&self) -> GameEndState {
+    pub fn get_end_state(&mut self) -> GameEndState {
         let board = self.get_board();
 
         // 1. check if team has any legal moves
@@ -544,16 +547,21 @@ impl GameState {
     //Returns the current board position
     // TODO(lucypero): Cache the board for subsequent calls to this on the same position
     //   will save a lot of cpu
-    pub fn get_board(&self) -> Board {
+    pub fn get_board(&mut self) -> Board {
         //Start with the starting board position then you start mutating it with each
         //  move until you get the current position
-
-        let mut board = self.starting_board.clone();
-        for chess_move in self.moves.iter() {
-            board.apply_move(*chess_move);
+        if let Some(board) = &self.cached_current_board {
+            println!("board cache hit");
+            board.clone()
+        } else {
+            println!("building board from starting board");
+            let mut board = self.starting_board.clone();
+            for chess_move in self.moves.iter() {
+                board.apply_move(*chess_move);
+            }
+            self.cached_current_board = Some(board.clone());
+            board
         }
-
-        board
     }
 
     pub fn perform_move(&mut self, mut chess_move: Move) -> Result<(), MoveError> {
@@ -750,12 +758,13 @@ impl GameState {
 
         //Everything is good. adding move to self.moves
         self.moves.push(chess_move);
+        self.cached_current_board = None;
 
         Ok(())
     }
 
     // whose turn is it?
-    pub fn whose_turn(&self) -> ChessTeam {
+    pub fn whose_turn(&mut self) -> ChessTeam {
         self.get_board().whose_turn
     }
 }
@@ -1087,7 +1096,7 @@ mod move_processor {
 
     // This uses our move parser in move_parser::parse() then processes the output
     //  It finds the right piece to move, and the destination tile, and constructs a Move
-    pub fn parse_move(mut move_input: String, game: &GameState) -> Result<Move, MoveParseError> {
+    pub fn parse_move(mut move_input: String, game: &mut GameState) -> Result<Move, MoveParseError> {
         move_input.retain(|c| !c.is_whitespace());
 
         let moves = move_parser::parse(move_input.chars().collect());
@@ -2036,7 +2045,7 @@ Available commands:
                 }
             }
         } else {
-            let parse_res = move_processor::parse_move(line, &game);
+            let parse_res = move_processor::parse_move(line, game);
             if parse_res.is_err() {
                 println!("Error while parsing move: {}", parse_res.unwrap_err());
                 continue;

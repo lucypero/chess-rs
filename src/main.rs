@@ -38,7 +38,7 @@ async fn main() {
 
     // game_cli_loop(&mut game);
 
-    let mut gfx_state = graphics::GfxState::init(&game).await;
+    let mut gfx_state = graphics::GfxState::init(&mut game).await;
 
     loop {
         game_loop(&mut game, &mut gfx_state).await;

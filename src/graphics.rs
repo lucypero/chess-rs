@@ -163,7 +163,7 @@ impl GfxState {
     }
 
     #[cfg(feature = "assets")]
-    pub async fn init(game: &GameState) -> GfxState {
+    pub async fn init(game: &mut GameState) -> GfxState {
         let piece_tex_index = 3;
         let board_tex_index = 22;
 
@@ -192,7 +192,7 @@ impl GfxState {
             dragged_legal_moves: vec![],
         };
 
-        state.sync_board(&game.get_board());
+        state.sync_board(&mut game.get_board());
 
         state
     }
@@ -290,7 +290,7 @@ impl GfxState {
         game.perform_move(the_move)
     }
 
-    fn handle_end_state(&self, game: &GameState) {
+    fn handle_end_state(&self, game: &mut GameState) {
         match game.get_end_state() {
             GameEndState::Checkmate => {
                 println!(
@@ -473,7 +473,7 @@ impl GfxState {
 
                 if res.is_ok() {
                     println!("Move Executed successfully!");
-                    self.handle_end_state(&game);
+                    self.handle_end_state(game);
                 } else {
                     println!("Move not valid");
                 }
@@ -482,7 +482,7 @@ impl GfxState {
             self.sync_board(&game.get_board());
         }
 
-        if input::is_mouse_button_pressed(MouseButton::Left) {
+        if input::is_mouse_button_pressed(MouseButton::Left) && !self.is_dragged {
             // println!("mouse click! at {:?}", input::mouse_position());
             //check if u clicked the box
             let mouse_vec = input::mouse_position();
@@ -501,7 +501,6 @@ impl GfxState {
                     self.is_dragged = true;
 
                     // populate dragged legal moves
-
                     let board = game.get_board();
                     self.dragged_legal_moves = board
                         .get_legal_moves_of_piece_in_tile(
