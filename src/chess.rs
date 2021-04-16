@@ -537,17 +537,30 @@ impl GameState {
         }
     }
 
+    pub fn get_move(&self, move_i: usize) -> Move {
+        self.moves[move_i]
+    }
+
     pub fn get_last_move(&self) -> Option<Move> {
         self.moves.last().copied()
     }
 
-    fn move_count(&self) -> u32 {
-        self.moves.len() as u32
+    pub fn move_count(&self) -> usize {
+        self.moves.len()
+    }
+
+    //Returns the board position at move_i
+    pub fn get_board_at(&self, move_i: usize) -> Board {
+        //Start with the starting board position then you start mutating it with each
+        //  move until you get the current position
+        let mut board = self.starting_board.clone();
+        for chess_move in self.moves.iter().take(move_i) {
+            board.apply_move(*chess_move);
+        }
+        board
     }
 
     //Returns the current board position
-    // TODO(lucypero): Cache the board for subsequent calls to this on the same position
-    //   will save a lot of cpu
     pub fn get_board(&mut self) -> &Board {
         //Start with the starting board position then you start mutating it with each
         //  move until you get the current position

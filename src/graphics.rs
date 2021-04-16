@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::cmp;
 
 use crate::chess::{
     Board, ChessPiece, ChessTeam, Coord, GameEndState, GameState, Move, MoveError, Tile,
@@ -132,6 +133,7 @@ pub struct GfxState {
     coord_on_right_click_press: Option<Coord>,
     coord_on_right_click_release: Option<Coord>,
     arrows: Vec<Arrow>,
+    viewed_move: usize
 }
 
 #[cfg(not(feature = "assets"))]
@@ -193,6 +195,8 @@ impl GfxState {
         let board_tex = load_texture(BOARD_TEXTURES[board_tex_index]).await;
         let pieces_tex = load_texture(PIECE_TEXTURES[piece_tex_index]).await;
 
+        let viewed_move = cmp::max(0 as usize, game.move_count()) as usize;
+
         let mut state = GfxState {
             dragged_piece_i,
             is_dragged,
@@ -206,11 +210,27 @@ impl GfxState {
             coord_on_right_click_press: None,
             coord_on_right_click_release: None,
             arrows: vec![],
+            viewed_move
         };
 
         state.sync_board(&mut game.get_board());
 
         state
+    }
+
+    //display board position at move [move_i]
+    fn show_move(&mut self, game: &GameState, move_i : usize) {
+
+        assert!(move_i <= game.move_count());
+        let board = game.get_board_at(move_i);
+        self.viewed_move = move_i;
+
+        //updating last move
+
+
+        self.sync_board(&board);
+
+        // if it is not the last move, lock the board (can't make any move)
     }
 
     fn get_coord_col(&self, coord: Coord) -> ColBox {
@@ -408,7 +428,9 @@ impl GfxState {
         self.draw_board();
 
         //draw tiles of last move
-        if let Some(last_move) = game.get_last_move() {
+
+        if self.viewed_move > 0 {
+            let last_move = game.get_move(self.viewed_move - 1);
             let coord_from: Coord;
             let coord_to: Coord;
 
@@ -465,6 +487,23 @@ impl GfxState {
             draw_rectangle(col_to.x, col_to.y, col_to.w, col_to.h, LAST_MOVE_COLOR);
         }
 
+        // cycle move display with arrow_left and arrow_right
+        if input::is_key_pressed(KeyCode::Left) { 
+            self.show_move(game, cmp::max(0,self.viewed_move as i32 - 1) as usize);
+        }
+
+        if input::is_key_pressed(KeyCode::Right) { 
+            self.show_move(game, cmp::min(game.move_count(),self.viewed_move + 1));
+        }
+
+        if input::is_key_pressed(KeyCode::Down) { 
+            self.show_move(game, game.move_count());
+        }
+
+        if input::is_key_pressed(KeyCode::Up) { 
+            self.show_move(game, 0);
+        }
+
         if !input::is_mouse_button_down(MouseButton::Left) && self.is_dragged {
             // println!("dragged stopped!");
             self.is_dragged = false;
@@ -486,6 +525,7 @@ impl GfxState {
                 let res = self.attempt_move_execution(self.dragged_piece_i, board_coord, game);
 
                 if res.is_ok() {
+                    self.viewed_move = game.move_count();
                     self.handle_end_state(game);
                 }
             }
