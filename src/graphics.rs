@@ -7,8 +7,15 @@ use crate::chess::{
 use macroquad::input;
 use macroquad::prelude::*;
 
-const PIECE_DISPLAY_SIZE: f32 = 80.0;
-const BOARD_PADDING: f32 = 30.0;
+use macroquad::ui::{
+    hash, root_ui,
+    widgets::{self, Group},
+    Drag, Ui,
+};
+
+const PIECE_DISPLAY_SIZE: u32 = 80;
+const BOARD_PADDING: u32 = 30;
+const MOVES_LIST_WIDTH: u32 = 200;
 
 // Color used for legal move indicators, arrows, tile where the piece will end up, etc...
 
@@ -105,8 +112,9 @@ const BOARD_TEXTURES: [&str; 33] = [
 pub fn get_mq_conf() -> Conf {
     Conf {
         window_title: String::from("Chess-rs"),
-        window_width: PIECE_DISPLAY_SIZE as i32 * 8 + BOARD_PADDING as i32 * 2,
-        window_height: PIECE_DISPLAY_SIZE as i32 * 8 + BOARD_PADDING as i32 * 2,
+        window_width: (PIECE_DISPLAY_SIZE * 8 + BOARD_PADDING * 2
+                        + MOVES_LIST_WIDTH + BOARD_PADDING) as i32,
+        window_height: (PIECE_DISPLAY_SIZE * 8 + BOARD_PADDING * 2) as i32,
         fullscreen: false,
         ..Default::default()
     }
@@ -158,10 +166,10 @@ impl GfxState {
         let is_dragged = false;
 
         let board_col = ColBox {
-            x: BOARD_PADDING,
-            y: BOARD_PADDING,
-            w: PIECE_DISPLAY_SIZE * 8.0,
-            h: PIECE_DISPLAY_SIZE * 8.0,
+            x: BOARD_PADDING as f32,
+            y: BOARD_PADDING as f32,
+            w: PIECE_DISPLAY_SIZE as f32 * 8.0,
+            h: PIECE_DISPLAY_SIZE as f32 * 8.0,
         };
 
         let mut state = GfxState {
@@ -186,10 +194,10 @@ impl GfxState {
         let is_dragged = false;
 
         let board_col = ColBox {
-            x: BOARD_PADDING,
-            y: BOARD_PADDING,
-            w: PIECE_DISPLAY_SIZE * 8.0,
-            h: PIECE_DISPLAY_SIZE * 8.0,
+            x: BOARD_PADDING as f32,
+            y: BOARD_PADDING as f32,
+            w: PIECE_DISPLAY_SIZE as f32 * 8.0,
+            h: PIECE_DISPLAY_SIZE as f32 * 8.0,
         };
 
         let board_tex = load_texture(BOARD_TEXTURES[board_tex_index]).await;
@@ -343,6 +351,43 @@ impl GfxState {
             }
             GameEndState::Running => {}
         }
+    }
+
+    fn draw_moves_ui(&mut self, game: &mut GameState) {
+
+        const move_no_w :f32 = 30.;
+        
+        widgets::Window::new(hash!(), vec2(PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
+                           BOARD_PADDING as f32), vec2(MOVES_LIST_WIDTH as f32, 
+                                          PIECE_DISPLAY_SIZE as f32 * 8.))
+            .movable(false)
+            .titlebar(false)
+            .ui(&mut *root_ui(), |ui| {
+                ui.label(None, "Moves");
+
+                // 0 -- 0
+                // 1 -- 1
+                // 2 -- 1
+                // 3 -- 2
+                // 4 -- 2
+                // 5 -- 3
+                let group_count = (game.move_count() + 1) / 2;
+                let move_count = game.move_count();
+
+                for i in 1..=group_count {
+                    Group::new(hash!("moves", i), vec2(MOVES_LIST_WIDTH as f32, 30.)).ui( ui, |ui| {
+                        ui.label(None, &format!("{}", i));
+
+                        for j in 0..=1 {
+                            let move_i = (i as i32 *2 + (j as i32 - 1)) as usize - 1;
+                            if move_count > move_i && ui.button(Vec2::new(move_no_w + j as f32 * ((MOVES_LIST_WIDTH as f32 - move_no_w) / 2.), 0.), &game.get_move_in_chess_notation(move_i)) {
+                                self.show_move(game, move_i + 1);
+                            }
+                        }
+                    });
+                }
+            });
+
     }
 
     fn draw_legal_move_tiles_at(&self, coords: &Vec<Coord>) {
@@ -837,6 +882,9 @@ impl GfxState {
                 }
             }
         }
+
+        //draw moves ui
+        self.draw_moves_ui(game);
     }
 }
 

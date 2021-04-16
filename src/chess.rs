@@ -315,19 +315,19 @@ impl fmt::Display for Tile {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let disp = match self {
-            Tile::A1 => "A1", Tile::A2 => "A2", Tile::A3 => "A3", Tile::A4 => "A4", Tile::A5 => "A5",
-            Tile::A6 => "A6", Tile::A7 => "A7", Tile::A8 => "A8", Tile::B1 => "B1", Tile::B2 => "B2",
-            Tile::B3 => "B3", Tile::B4 => "B4", Tile::B5 => "B5", Tile::B6 => "B6", Tile::B7 => "B7",
-            Tile::B8 => "B8", Tile::C1 => "C1", Tile::C2 => "C2", Tile::C3 => "C3", Tile::C4 => "C4",
-            Tile::C5 => "C5", Tile::C6 => "C6", Tile::C7 => "C7", Tile::C8 => "C8", Tile::D1 => "D1",
-            Tile::D2 => "D2", Tile::D3 => "D3", Tile::D4 => "D4", Tile::D5 => "D5", Tile::D6 => "D6",
-            Tile::D7 => "D7", Tile::D8 => "D8", Tile::E1 => "E1", Tile::E2 => "E2", Tile::E3 => "E3",
-            Tile::E4 => "E4", Tile::E5 => "E5", Tile::E6 => "E6", Tile::E7 => "E7", Tile::E8 => "E8",
-            Tile::F1 => "F1", Tile::F2 => "F2", Tile::F3 => "F3", Tile::F4 => "F4", Tile::F5 => "F5",
-            Tile::F6 => "F6", Tile::F7 => "F7", Tile::F8 => "F8", Tile::G1 => "G1", Tile::G2 => "G2",
-            Tile::G3 => "G3", Tile::G4 => "G4", Tile::G5 => "G5", Tile::G6 => "G6", Tile::G7 => "G7",
-            Tile::G8 => "G8", Tile::H1 => "H1", Tile::H2 => "H2", Tile::H3 => "H3", Tile::H4 => "H4",
-            Tile::H5 => "H5", Tile::H6 => "H6", Tile::H7 => "H7", Tile::H8 => "H8",
+            Tile::A1 => "a1", Tile::A2 => "a2", Tile::A3 => "a3", Tile::A4 => "a4", Tile::A5 => "a5",
+            Tile::A6 => "a6", Tile::A7 => "a7", Tile::A8 => "a8", Tile::B1 => "b1", Tile::B2 => "b2",
+            Tile::B3 => "b3", Tile::B4 => "b4", Tile::B5 => "b5", Tile::B6 => "b6", Tile::B7 => "b7",
+            Tile::B8 => "b8", Tile::C1 => "c1", Tile::C2 => "c2", Tile::C3 => "c3", Tile::C4 => "c4",
+            Tile::C5 => "c5", Tile::C6 => "c6", Tile::C7 => "c7", Tile::C8 => "c8", Tile::D1 => "d1",
+            Tile::D2 => "d2", Tile::D3 => "d3", Tile::D4 => "d4", Tile::D5 => "d5", Tile::D6 => "d6",
+            Tile::D7 => "d7", Tile::D8 => "d8", Tile::E1 => "e1", Tile::E2 => "e2", Tile::E3 => "e3",
+            Tile::E4 => "e4", Tile::E5 => "e5", Tile::E6 => "e6", Tile::E7 => "e7", Tile::E8 => "e8",
+            Tile::F1 => "f1", Tile::F2 => "f2", Tile::F3 => "f3", Tile::F4 => "f4", Tile::F5 => "f5",
+            Tile::F6 => "f6", Tile::F7 => "f7", Tile::F8 => "f8", Tile::G1 => "g1", Tile::G2 => "g2",
+            Tile::G3 => "g3", Tile::G4 => "g4", Tile::G5 => "g5", Tile::G6 => "g6", Tile::G7 => "g7",
+            Tile::G8 => "g8", Tile::H1 => "h1", Tile::H2 => "h2", Tile::H3 => "h3", Tile::H4 => "h4",
+            Tile::H5 => "h5", Tile::H6 => "h6", Tile::H7 => "h7", Tile::H8 => "h8",
         };
 
         write!(f, "{}", disp)
@@ -771,6 +771,45 @@ impl GameState {
         self.cached_current_board = None;
 
         Ok(())
+    }
+
+    pub fn get_move_in_chess_notation(&self, move_i: usize) -> String{
+        let the_move = self.moves[move_i];
+
+        fn piece_to_str(p : ChessPiece) -> String {
+            let p_str = match p {
+                    ChessPiece::Pawn => "",
+                    ChessPiece::Rook => "R",
+                    ChessPiece::Knight => "K",
+                    ChessPiece::Bishop => "B",
+                    ChessPiece::Queen => "Q",
+                    ChessPiece::King => "K"
+                };
+            p_str.to_string()
+        }
+
+        let basic_move = match the_move {
+            Move::PieceMove{piece, tile_from, tile_to, is_en_passant} => {
+                let piece_str = piece_to_str(piece);
+                let tile_to_str = &format!("{}", tile_to);
+                piece_str.to_string() + tile_to_str
+            }
+            Move::PieceMoveWithPromotion{tile_from, tile_to, promotion} => {
+                let piece_str = piece_to_str(promotion);
+                let tile_to_str = &format!("{}", tile_to);
+                tile_to_str.to_string() + "=" + &piece_str
+            }
+            Move::CastleShort => {
+                "O-O".to_string()
+            }
+            Move::CastleLong  => {
+                "O-O-O".to_string()
+            }
+        };
+
+        // TODO(lucypero): Check, checkmate, en passant, etc
+
+        basic_move
     }
 
     // whose turn is it?
