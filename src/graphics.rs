@@ -10,7 +10,7 @@ use macroquad::prelude::*;
 use macroquad::ui::{
     hash, root_ui,
     widgets::{self, Group},
-    Drag, Ui,
+    // Drag, Ui,
 };
 
 const PIECE_DISPLAY_SIZE: u32 = 80;
@@ -141,7 +141,11 @@ pub struct GfxState {
     coord_on_right_click_press: Option<Coord>,
     coord_on_right_click_release: Option<Coord>,
     arrows: Vec<Arrow>,
-    viewed_move: usize
+    viewed_move: usize,
+
+    //promotion
+    is_promotion_ui_shown : bool,
+    promotion_move: Move,
 }
 
 #[cfg(not(feature = "assets"))]
@@ -218,7 +222,9 @@ impl GfxState {
             coord_on_right_click_press: None,
             coord_on_right_click_release: None,
             arrows: vec![],
-            viewed_move
+            viewed_move,
+            promotion_move: Move::CastleLong,
+            is_promotion_ui_shown: false
         };
 
         state.sync_board(&mut game.get_board());
@@ -313,12 +319,26 @@ impl GfxState {
         }
         //promotion?
         else if piece.piece_type == ChessPiece::Pawn && coord_to.y == finish_line {
-            // TODO(lucypero): Auto promotes to a queen for now
+
             the_move = Move::PieceMoveWithPromotion {
                 tile_from,
                 tile_to,
                 promotion: ChessPiece::Queen,
             };
+
+            let last_move = game.get_last_move();
+            let moves = game.get_board().get_legal_moves_of_piece_in_tile(tile_from, last_move);
+
+            if let Some(moves) = moves {
+                if moves.contains(&coord_to) {
+
+                    self.is_promotion_ui_shown = true;
+                    self.promotion_move = the_move;
+
+                    return Err(MoveError::PromotionPieceNotSpecified);
+                }
+            }
+
         }
         //normal move
         else {
@@ -332,6 +352,45 @@ impl GfxState {
         }
 
         game.perform_move(the_move)
+    }
+
+    fn draw_promotion(&mut self, game: &mut GameState) {
+        const W_W: f32 = 200.;
+        const W_H: f32 = 300.;
+
+        let mut pro_p = None;
+
+        widgets::Window::new(hash!(), 
+            vec2(screen_width() / 2.0 - W_W / 2.0, BOARD_PADDING as f32 + 100.0),
+            vec2(W_W, W_H))
+            .movable(false)
+            .titlebar(false)
+            .ui(&mut *root_ui(), |ui| {
+                if ui.button(vec2(0.0, 0.0), "Queen") { pro_p = Some(ChessPiece::Queen); }
+                if ui.button(vec2(0.0, 20.0), "Bishop") { pro_p = Some(ChessPiece::Bishop); }
+                if ui.button(vec2(0.0, 40.0), "Knight") { pro_p = Some(ChessPiece::Knight); }
+                if ui.button(vec2(0.0, 60.0), "Rook") { pro_p = Some(ChessPiece::Rook); }
+            });
+
+        if let Some(p) = pro_p {
+            self.is_promotion_ui_shown = false;
+
+            if let Move::PieceMoveWithPromotion{
+                tile_from:_, 
+                tile_to:_, 
+                promotion: ref mut prom_piece 
+            } = self.promotion_move {
+                *prom_piece = p;
+            }
+
+            let res = game.perform_move(self.promotion_move);
+
+            if res.is_ok() {
+                self.viewed_move = game.move_count();
+                self.handle_end_state(game);
+                self.sync_board(&game.get_board());
+            }
+        }
     }
 
     fn handle_end_state(&self, game: &mut GameState) {
@@ -355,7 +414,7 @@ impl GfxState {
 
     fn draw_moves_ui(&mut self, game: &mut GameState) {
 
-        const move_no_w :f32 = 30.;
+        const MOVE_NO_W :f32 = 30.;
         
         widgets::Window::new(hash!(), vec2(PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
                            BOARD_PADDING as f32), vec2(MOVES_LIST_WIDTH as f32, 
@@ -380,7 +439,7 @@ impl GfxState {
 
                         for j in 0..=1 {
                             let move_i = (i as i32 *2 + (j as i32 - 1)) as usize - 1;
-                            if move_count > move_i && ui.button(Vec2::new(move_no_w + j as f32 * ((MOVES_LIST_WIDTH as f32 - move_no_w) / 2.), 0.), &game.get_move_in_chess_notation(move_i)) {
+                            if move_count > move_i && ui.button(Vec2::new(MOVE_NO_W + j as f32 * ((MOVES_LIST_WIDTH as f32 - MOVE_NO_W) / 2.), 0.), &game.get_move_in_chess_notation(move_i)) {
                                 self.show_move(game, move_i + 1);
                             }
                         }
@@ -885,6 +944,11 @@ impl GfxState {
 
         //draw moves ui
         self.draw_moves_ui(game);
+
+        //test draw promoting ui
+        if self.is_promotion_ui_shown {
+            self.draw_promotion(game);
+        }
     }
 }
 

@@ -789,12 +789,12 @@ impl GameState {
         }
 
         let basic_move = match the_move {
-            Move::PieceMove{piece, tile_from, tile_to, is_en_passant} => {
+            Move::PieceMove{piece, tile_from:_, tile_to, is_en_passant:_} => {
                 let piece_str = piece_to_str(piece);
                 let tile_to_str = &format!("{}", tile_to);
                 piece_str.to_string() + tile_to_str
             }
-            Move::PieceMoveWithPromotion{tile_from, tile_to, promotion} => {
+            Move::PieceMoveWithPromotion{tile_from: _, tile_to, promotion} => {
                 let piece_str = piece_to_str(promotion);
                 let tile_to_str = &format!("{}", tile_to);
                 tile_to_str.to_string() + "=" + &piece_str
