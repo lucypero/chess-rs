@@ -20,6 +20,12 @@ const MOVES_LIST_WIDTH: u32 = 200;
 // Color used for legal move indicators, arrows, tile where the piece will end up, etc...
 
 const HIGHLIGHT_COLOR_RGB: (f32, f32, f32) = (0.89, 0.596, 0.850); //pinki
+const BACKGROUND_COLOR: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 1.0,
+};
 
 const HIGHLIGHT_COLOR: Color = Color {
     r: HIGHLIGHT_COLOR_RGB.0,
@@ -37,9 +43,8 @@ const LAST_MOVE_COLOR: Color = Color {
     a: 0.2,
 };
 
-const PIECE_TEXTURES: [&str; 35] = [
+const PIECE_TEXTURES: [&str; 34] = [
     "assets/pieces/madware_tileset_128.png",
-    "assets/pieces/madware_tileset_256.png",
     "assets/pieces/neo.png",
     "assets/pieces/8_bit.png",
     "assets/pieces/alpha.png",
@@ -75,7 +80,8 @@ const PIECE_TEXTURES: [&str; 35] = [
     "assets/pieces/wood.png",
 ];
 
-const BOARD_TEXTURES: [&str; 33] = [
+const BOARD_TEXTURES: [&str; 34] = [
+    "assets/boards/cute_board.png",
     "assets/boards/8_bit.png",
     "assets/boards/bases.png",
     "assets/boards/blue.png",
@@ -128,7 +134,6 @@ enum Arrow {
     Circle(Coord),       //x,y
 }
 
-#[cfg(feature = "assets")]
 pub struct GfxState {
     dragged_piece_i: usize,
     is_dragged: bool,
@@ -150,15 +155,6 @@ pub struct GfxState {
     promotion_move: Move,
 }
 
-#[cfg(not(feature = "assets"))]
-pub struct GfxState {
-    dragged_piece_i: usize,
-    is_dragged: bool,
-    board_col: ColBox,
-    pieces: Vec<Piece>,
-    dragged_legal_moves: Vec<Coord>,
-}
-
 fn get_board_coord(tile: Tile) -> Coord {
     let mut coord = Coord::from(tile);
     coord.y = 7 - coord.y;
@@ -166,35 +162,10 @@ fn get_board_coord(tile: Tile) -> Coord {
 }
 
 impl GfxState {
-    #[cfg(not(feature = "assets"))]
-    pub async fn init(game: &GameState) -> GfxState {
-        let dragged_piece_i = 0;
-        let is_dragged = false;
 
-        let board_col = ColBox {
-            x: BOARD_PADDING as f32,
-            y: BOARD_PADDING as f32,
-            w: PIECE_DISPLAY_SIZE as f32 * 8.0,
-            h: PIECE_DISPLAY_SIZE as f32 * 8.0,
-        };
-
-        let mut state = GfxState {
-            dragged_piece_i,
-            is_dragged,
-            board_col,
-            pieces: vec![],
-            dragged_legal_moves: vec![],
-        };
-
-        state.sync_board(&game.get_board());
-
-        state
-    }
-
-    #[cfg(feature = "assets")]
     pub async fn init(game: &mut GameState) -> GfxState {
-        let piece_tex_index = 2;
-        let board_tex_index = 14;
+        let piece_tex_index = 0;
+        let board_tex_index = 0;
 
         let dragged_piece_i = 0;
         let is_dragged = false;
@@ -466,7 +437,6 @@ impl GfxState {
         }
     }
 
-    #[cfg(feature = "assets")]
     async fn keys_swap_textures(&mut self) {
         if input::is_key_pressed(KeyCode::B) {
             self.board_tex_index += 1;
@@ -490,10 +460,6 @@ impl GfxState {
         }
     }
 
-    #[cfg(not(feature = "assets"))]
-    fn keys_swap_textures(&mut self) {}
-
-    #[cfg(feature = "assets")]
     fn draw_board(&self) {
         let board_params = DrawTextureParams {
             dest_size: Some(Vec2 {
@@ -515,21 +481,10 @@ impl GfxState {
         );
     }
 
-    #[cfg(not(feature = "assets"))]
-    fn draw_board(&self) {
-        draw_rectangle(
-            self.board_col.x,
-            self.board_col.y,
-            self.board_col.w,
-            self.board_col.h,
-            BROWN,
-        );
-    }
-
     pub async fn draw(&mut self, game: &mut GameState) {
-        self.keys_swap_textures().await;
+        // self.keys_swap_textures().await;
 
-        clear_background(DARKBROWN);
+        clear_background(BACKGROUND_COLOR);
 
         self.draw_board();
 
@@ -679,14 +634,7 @@ impl GfxState {
 
         for (i, piece) in self.pieces.iter().enumerate() {
             if self.is_dragged && i != self.dragged_piece_i || !self.is_dragged {
-                #[cfg(feature = "assets")]
-                {
-                    piece.draw(&self.pieces_tex);
-                }
-                #[cfg(not(feature = "assets"))]
-                {
-                    piece.draw();
-                }
+                piece.draw(&self.pieces_tex);
             }
         }
 
@@ -726,14 +674,7 @@ impl GfxState {
         }
 
         if self.is_dragged {
-            #[cfg(feature = "assets")]
-            {
-                self.pieces[self.dragged_piece_i].draw(&self.pieces_tex);
-            }
-            #[cfg(not(feature = "assets"))]
-            {
-                self.pieces[self.dragged_piece_i].draw();
-            }
+            self.pieces[self.dragged_piece_i].draw(&self.pieces_tex);
         }
 
         //handle arrow input
@@ -1001,30 +942,6 @@ impl Piece {
         self.col.y = (board_col.h / 8.0) * (7 - self.pos.y) as f32 + board_col.y;
     }
 
-    #[cfg(not(feature = "assets"))]
-    fn draw(&self) {
-        let color = match self.team {
-            ChessTeam::Black => BLACK,
-            ChessTeam::White => WHITE,
-        };
-
-        let text_color = match self.team {
-            ChessTeam::Black => WHITE,
-            ChessTeam::White => BLACK,
-        };
-
-        self.col.draw(color);
-        let piece_str = format!("{}", self.piece_type);
-        draw_text(
-            piece_str.as_str(),
-            self.col.x,
-            self.col.y + self.col.h / 2.0,
-            15.0,
-            text_color,
-        );
-    }
-
-    #[cfg(feature = "assets")]
     fn draw(&self, atlas_tex: &Texture2D) {
 
         let params;

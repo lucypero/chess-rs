@@ -11,16 +11,6 @@ fn get_mq_conf() -> macroquad::prelude::Conf {
     graphics::get_mq_conf()
 }
 
-#[cfg(feature = "assets")]
-fn assets() {
-    println!("Assets will try to be loaded. Make sure for the assets to be present in /assets");
-}
-
-#[cfg(not(feature = "assets"))]
-fn assets() {
-    println!("Assets will not be used.");
-}
-
 struct Args {
     test: Option<GameState>,
     fen: Option<GameState>
@@ -76,8 +66,6 @@ async fn main() {
     // test scenarios
     let args: Vec<String> = std::env::args().collect();
     let args = parse_args(args);
-
-    assets();
 
     //initializing game state
     let mut game = if let Some(fen_game) = args.fen {

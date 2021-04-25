@@ -1,3 +1,7 @@
 /target
 Session.vim
 todo
+/assets/pieces/*
+!/assets/pieces/madware_tileset_128.png
+/assets/boards/*
+!/assets/boards/cute_board.png
