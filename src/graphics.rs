@@ -37,7 +37,9 @@ const LAST_MOVE_COLOR: Color = Color {
     a: 0.2,
 };
 
-const PIECE_TEXTURES: [&str; 33] = [
+const PIECE_TEXTURES: [&str; 35] = [
+    "assets/pieces/madware_tileset_128.png",
+    "assets/pieces/madware_tileset_256.png",
     "assets/pieces/neo.png",
     "assets/pieces/8_bit.png",
     "assets/pieces/alpha.png",
@@ -191,7 +193,7 @@ impl GfxState {
 
     #[cfg(feature = "assets")]
     pub async fn init(game: &mut GameState) -> GfxState {
-        let piece_tex_index = 5;
+        let piece_tex_index = 0;
         let board_tex_index = 14;
 
         let dragged_piece_i = 0;
@@ -1024,35 +1026,108 @@ impl Piece {
 
     #[cfg(feature = "assets")]
     fn draw(&self, atlas_tex: &Texture2D) {
-        let mut atlas_pos = match self.piece_type {
-            ChessPiece::Pawn => 3,
-            ChessPiece::Rook => 5,
-            ChessPiece::Knight => 2,
-            ChessPiece::Bishop => 0,
-            ChessPiece::Queen => 4,
-            ChessPiece::King => 1,
-        };
 
-        if self.team == ChessTeam::White {
-            atlas_pos += 6;
+        let params;
+
+
+
+        if atlas_tex.width() == 1536. && atlas_tex.height() == 512. {
+
+            let atlas_pos_x = match self.piece_type {
+                ChessPiece::Pawn => 5,
+                ChessPiece::Rook => 0,
+                ChessPiece::Knight => 1,
+                ChessPiece::Bishop => 2,
+                ChessPiece::Queen => 3,
+                ChessPiece::King => 4,
+            };
+
+            let atlas_pos_y = match self.team {
+                ChessTeam::Black => 0,
+                ChessTeam::White => 1
+            };
+
+            params = DrawTextureParams {
+                dest_size: Some(Vec2 {
+                    x: self.col.w,
+                    y: self.col.h,
+                }),
+                source: Some(Rect {
+                    x: 256.0 * atlas_pos_x as f32,
+                    y: 256.0 * atlas_pos_y as f32,
+                    w: 256.0,
+                    h: 256.0,
+                }),
+                rotation: 0.0,
+                flip_x: false,
+                flip_y: false,
+                pivot: None,
+            };
+        } else if atlas_tex.width() == 768. && atlas_tex.height() == 256. {
+
+            let atlas_pos_x = match self.piece_type {
+                ChessPiece::Pawn => 5,
+                ChessPiece::Rook => 0,
+                ChessPiece::Knight => 1,
+                ChessPiece::Bishop => 2,
+                ChessPiece::Queen => 3,
+                ChessPiece::King => 4,
+            };
+
+            let atlas_pos_y = match self.team {
+                ChessTeam::Black => 0,
+                ChessTeam::White => 1
+            };
+
+            params = DrawTextureParams {
+                dest_size: Some(Vec2 {
+                    x: self.col.w,
+                    y: self.col.h,
+                }),
+                source: Some(Rect {
+                    x: 128.0 * atlas_pos_x as f32,
+                    y: 128.0 * atlas_pos_y as f32,
+                    w: 128.0,
+                    h: 128.0,
+                }),
+                rotation: 0.0,
+                flip_x: false,
+                flip_y: false,
+                pivot: None,
+            };
+
+        } else {
+
+            let mut atlas_pos_x = match self.piece_type {
+                ChessPiece::Pawn => 3,
+                ChessPiece::Rook => 5,
+                ChessPiece::Knight => 2,
+                ChessPiece::Bishop => 0,
+                ChessPiece::Queen => 4,
+                ChessPiece::King => 1,
+            };
+
+            if self.team == ChessTeam::White {
+                atlas_pos_x += 6;
+            }
+
+            params = DrawTextureParams {
+                dest_size: Some(Vec2 {
+                    x: self.col.w,
+                    y: self.col.h,
+                }),
+                source: Some(Rect {
+                    x: 150.0 * atlas_pos_x as f32,
+                    y: 0.0,
+                    w: 150.0,
+                    h: 150.0,
+                }),
+                rotation: 0.0,
+                flip_x: false,
+                flip_y: false,
+                pivot: None,
+            };
         }
-
-        let params = DrawTextureParams {
-            dest_size: Some(Vec2 {
-                x: self.col.w,
-                y: self.col.h,
-            }),
-            source: Some(Rect {
-                x: 150.0 * atlas_pos as f32,
-                y: 0.0,
-                w: 150.0,
-                h: 150.0,
-            }),
-            rotation: 0.0,
-            flip_x: false,
-            flip_y: false,
-            pivot: None,
-        };
 
         draw_texture_ex(*atlas_tex, self.col.x, self.col.y, WHITE, params);
     }

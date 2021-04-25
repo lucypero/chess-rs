@@ -118,7 +118,7 @@ impl fmt::Display for MoveError {
 
 // Represents coordinates and distances on the board
 //  the origin (0,0) is at the bottom left corner of the board (A1)
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Coord {
     pub x: i32,
     pub y: i32,
@@ -335,7 +335,7 @@ impl fmt::Display for Tile {
 }
 
 impl TryFrom<Coord> for Tile {
-    type Error = &'static str;
+    type Error = String;
 
     fn try_from(coord: Coord) -> Result<Self, Self::Error> {
         match coord {
@@ -411,7 +411,7 @@ impl TryFrom<Coord> for Tile {
             Coord { x: 7, y: 6 } => Ok(Tile::H7),
             Coord { x: 7, y: 7 } => Ok(Tile::H8),
 
-            _ => Err("This coordinate cannot be a tile."),
+            _ => Err(format!("This coordinate cannot be a tile: {:?}", coord)),
         }
     }
 }
@@ -2133,16 +2133,121 @@ Available commands:
     }
 }
 
-pub fn get_test(args: Vec<String>) -> Option<GameState> {
-    if args.len() <= 1 {
-        return None;
+pub fn parse_fen(fen: String) -> Option<GameState> {
+
+    fn get_teamed_piece(c: char) -> Option<TeamedChessPiece> {
+        match c {
+            'r' => Some(TeamedChessPiece(ChessTeam::Black, ChessPiece::Rook)),
+            'n' => Some(TeamedChessPiece(ChessTeam::Black, ChessPiece::Knight)),
+            'b' => Some(TeamedChessPiece(ChessTeam::Black, ChessPiece::Bishop)),
+            'q' => Some(TeamedChessPiece(ChessTeam::Black, ChessPiece::Queen)),
+            'k' => Some(TeamedChessPiece(ChessTeam::Black, ChessPiece::King)),
+            'p' => Some(TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn)),
+
+            'R' => Some(TeamedChessPiece(ChessTeam::White, ChessPiece::Rook)),
+            'N' => Some(TeamedChessPiece(ChessTeam::White, ChessPiece::Knight)),
+            'B' => Some(TeamedChessPiece(ChessTeam::White, ChessPiece::Bishop)),
+            'Q' => Some(TeamedChessPiece(ChessTeam::White, ChessPiece::Queen)),
+            'K' => Some(TeamedChessPiece(ChessTeam::White, ChessPiece::King)),
+            'P' => Some(TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn)),
+            _ => None
+        }
     }
 
-    if args.get(1).unwrap() == "test" {
-        let test_arg = args.get(2)?;
+    let chars : Vec<char> = fen.as_str().chars().collect();
 
+    let mut i = 0;
+
+    let mut rank = 7;
+    let mut file = 0;
+
+    let mut piece_locations = HashMap::new();
+
+    //parsing piece locations
+    loop {
+        if i >= chars.len() || rank < 0 || chars[i] == ' ' {
+            break;
+        }
+
+        // if file > 7 {
+        //     i+=1;
+        //     println!("continuing");
+        //     continue;
+        // }
+
+        let c = chars[i];
+
+        if c == '/' {
+            rank -= 1;
+            file = 0;
+        }
+        else if c >= '1' && c <= '8' {
+            //get number
+            let n = c.to_digit(10).unwrap();
+            file+=n as i32;
+        }
+        //get piece type
+        else if let Some(p) = get_teamed_piece(c) {
+            //place piece in board
+            let tile = Tile::try_from(Coord{x:file, y: rank}).unwrap();
+            piece_locations.insert(tile, p);
+            file+=1;
+        } 
+
+        i+=1;
+    }
+
+    //parsing active color
+    i+=1;
+    let active_color = chars[i];
+    let whose_turn; 
+    if active_color == 'b' {
+        whose_turn = ChessTeam::Black;
+    } else {
+        whose_turn = ChessTeam::White;
+    }
+
+    let mut castling_rights = (false,false,false,false);
+
+    //parsing castling rights
+    i+=2;
+    if chars[i] != '-' {
+        loop {
+            if chars[i] == ' ' {
+                break;
+            }
+
+            if chars[i] == 'K' {
+                castling_rights.0 = true;
+            } else if chars[i] == 'Q' {
+                castling_rights.1 = true;
+            } else if chars[i] == 'k' {
+                castling_rights.2 = true;
+            } else if chars[i] == 'q' {
+                castling_rights.3 = true;
+            }
+
+            i+=1;
+        }
+
+    }
+
+    // TODO(lucypero): Parse en passant target square, half moves and full move counter
+
+    println!("Whose turn: {}, castling rights: {:?}", whose_turn, castling_rights);
+
+    let board = Board {
+        whose_turn,
+        piece_locations,
+        castling_rights
+    };
+
+    Some(GameState::init_from_custom_position(board))
+}
+
+pub fn get_test(test: String) -> Option<GameState> {
         #[allow(clippy::single_match)]
-        match test_arg.as_str() {
+        match test.as_str() {
             "promotion-test" => {
                 let mut piece_locations = HashMap::new();
 
@@ -2185,7 +2290,5 @@ pub fn get_test(args: Vec<String>) -> Option<GameState> {
             }
             _ => {}
         }
-    }
-
     None
 }
