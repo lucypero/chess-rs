@@ -193,7 +193,7 @@ impl GfxState {
 
     #[cfg(feature = "assets")]
     pub async fn init(game: &mut GameState) -> GfxState {
-        let piece_tex_index = 0;
+        let piece_tex_index = 2;
         let board_tex_index = 14;
 
         let dragged_piece_i = 0;
@@ -328,8 +328,8 @@ impl GfxState {
                 promotion: ChessPiece::Queen,
             };
 
-            let last_move = game.get_last_move();
-            let moves = game.get_board().get_legal_moves_of_piece_in_tile(tile_from, last_move);
+            let ep_square = game.en_passant_square;
+            let moves = game.get_board().get_legal_moves_of_piece_in_tile(tile_from, ep_square);
 
             if let Some(moves) = moves {
                 if moves.contains(&coord_to) {
@@ -405,8 +405,8 @@ impl GfxState {
                 // TODO(lucypero): Yeah I panic just to end the program hah
                 panic!("nothing went wrong, it's just that the game ended");
             }
-            GameEndState::Stalemate => {
-                println!("It's a stalemate! Game is drawn!");
+            GameEndState::Draw => {
+                println!("It's a draw!");
                 // TODO(lucypero): Yeah I panic just to end the program hah
                 panic!("nothing went wrong, it's just that the game ended");
             }
@@ -658,12 +658,12 @@ impl GfxState {
                     self.is_dragged = true;
 
                     // populate dragged legal moves
-                    let last_move = game.get_last_move();
+                    let ep_square = game.en_passant_square;
                     let board = game.get_board();
                     self.dragged_legal_moves = board
                         .get_legal_moves_of_piece_in_tile(
                             Tile::try_from(self.pieces[i].pos).unwrap(),
-                            last_move,
+                            ep_square,
                         )
                         .unwrap();
 

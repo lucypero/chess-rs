@@ -433,6 +433,34 @@ pub enum Move {
     CastleLong,
 }
 
+impl Move {
+    fn get_en_passant_square(&self) -> Option<Tile> {
+
+        if let Move::PieceMove{piece: piece_type, tile_from, tile_to, is_en_passant:_} = self {
+
+            let tile_from_coord = Coord::from(*tile_from);
+            let tile_to_coord = Coord::from(*tile_to);
+
+            if *piece_type == ChessPiece::Pawn && 
+                ( (tile_from_coord.y == 1 && tile_to_coord.y == 3) ||
+                  (tile_from_coord.y == 6 && tile_to_coord.y == 4) ) {
+                    //get ep square
+
+                let ep_y = if tile_to_coord.y == 3 { 
+                    2
+                } else {
+                    5
+                };
+
+                return Some(Tile::try_from(
+                        Coord{x:tile_from_coord.x, y: ep_y }).unwrap());
+            }
+        }
+
+        None
+    }
+}
+
 impl fmt::Display for Move {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -476,13 +504,16 @@ impl fmt::Display for Move {
 
 pub struct GameState {
     moves: Vec<Move>,
-    starting_board: Board,
     cached_current_board: Option<Board>,
+    fifty_move_counter: u32, //the number of halfmoves since the last capture or pawn advance
+    starting_board: Board,
+    starting_move_count: u32, //The number of the full move (before moves start being counted). It starts at 1, and is incremented after Black's move.
+    pub en_passant_square: Option<Tile>
 }
 
 pub enum GameEndState {
     Checkmate,
-    Stalemate,
+    Draw,
     Running,
 }
 
@@ -491,7 +522,10 @@ impl GameState {
         GameState {
             moves: vec![],
             starting_board: Board::start_position(),
-            cached_current_board: None
+            cached_current_board: None,
+            fifty_move_counter: 0,
+            starting_move_count: 0,
+            en_passant_square: None,
         }
     }
 
@@ -499,22 +533,32 @@ impl GameState {
         GameState {
             moves: vec![],
             starting_board: board,
-            cached_current_board: None
+            cached_current_board: None,
+            starting_move_count: 0,
+            en_passant_square: None,
+            fifty_move_counter: 0,
         }
     }
 
     pub fn get_end_state(&mut self) -> GameEndState {
+
+        // fifty move rule
+        if self.fifty_move_counter == 50 {
+            println!("50 move rule!!! hahahaha");
+            return GameEndState::Draw;
+        }
+
         // 1. check if team has any legal moves
 
         let mut has_legal_moves = false;
 
         let whose_turn = self.whose_turn();
-        let last_move = self.get_last_move();
+        let ep_square = self.en_passant_square;
 
         let team_pieces = self.get_board().find_pieces_of_team(whose_turn);
         for piece in team_pieces {
             if !self.get_board()
-                .get_legal_moves_of_piece_in_tile(piece.1, last_move)
+                .get_legal_moves_of_piece_in_tile(piece.1, ep_square)
                 .unwrap()
                 .is_empty()
             {
@@ -530,10 +574,11 @@ impl GameState {
 
         // 2. if team is in check, it is checkmate and current team has lost
         //    2.2 if not, it is stalemate
-        if self.get_board().is_team_in_check(whose_turn, last_move) {
+        if self.get_board().is_team_in_check(whose_turn, ep_square) {
             GameEndState::Checkmate
         } else {
-            GameEndState::Stalemate
+            println!("stalemate!! hahahah");
+            GameEndState::Draw
         }
     }
 
@@ -580,8 +625,9 @@ impl GameState {
         //    the move is added to self.moves
 
         let whose_turn = self.whose_turn();
-        let last_move = self.get_last_move();
+        let ep_square = self.en_passant_square;
         let board = self.get_board();
+        let mut was_capture_or_pawn_move = false;
 
         match chess_move {
             Move::PieceMove {
@@ -607,7 +653,7 @@ impl GameState {
                     piece,
                     tile_from,
                     tile_to,
-                    last_move,
+                    ep_square,
                     board,
                     &mut is_en_passant,
                 ) {
@@ -632,6 +678,11 @@ impl GameState {
                 if piece_type == ChessPiece::Pawn && tile_to_coord.y == back_rank {
                     return Err(MoveError::PromotionPieceNotSpecified);
                 }
+
+                //check if pawn move
+                if piece_type == ChessPiece::Pawn {
+                    was_capture_or_pawn_move = true;
+                }
             }
             Move::PieceMoveWithPromotion {
                 tile_from,
@@ -649,7 +700,7 @@ impl GameState {
                 }
 
                 // 3: Is the move legal according to how the piece moves?
-                if !is_piece_move_legal(piece, tile_from, tile_to, last_move, &board, &mut false) {
+                if !is_piece_move_legal(piece, tile_from, tile_to, ep_square, &board, &mut false) {
                     return Err(MoveError::PieceDoesNotMoveLikeThat);
                 }
 
@@ -669,6 +720,8 @@ impl GameState {
                 if promotion == ChessPiece::Pawn || promotion == ChessPiece::King {
                     return Err(MoveError::PromotionWrongPiece);
                 }
+
+                was_capture_or_pawn_move = true;
             }
             Move::CastleShort | Move::CastleLong => {
                 //1. check if the player has castling rights
@@ -741,7 +794,7 @@ impl GameState {
                 };
 
                 for tile in tiles_king {
-                    if board.is_tile_attacked_by(whose_turn.the_other_one(), tile, last_move)
+                    if board.is_tile_attacked_by(whose_turn.the_other_one(), tile, ep_square)
                     {
                         return Err(MoveError::CastlingThroughCheck);
                     }
@@ -751,9 +804,15 @@ impl GameState {
 
         // would the move put the player's king in check?
 
+        //next ep square
+        let next_ep_square = chess_move.get_en_passant_square();
+
         // 1. get a hypothetical board where this move is performed anyway
         let mut future_board = board.clone();
-        future_board.apply_move(chess_move);
+        if future_board.apply_move(chess_move) {
+            was_capture_or_pawn_move = true;
+        }
+        
         // 2. in that board, check if the king is attacked
 
         //finding king tile
@@ -761,7 +820,7 @@ impl GameState {
         if future_board.is_tile_attacked_by(
             self.whose_turn().the_other_one(),
             Tile::try_from(king_coord).unwrap(),
-            Some(chess_move),
+            next_ep_square,
         ) {
             return Err(MoveError::InCheck);
         }
@@ -769,6 +828,18 @@ impl GameState {
         //Everything is good. adding move to self.moves
         self.moves.push(chess_move);
         self.cached_current_board = None;
+        self.en_passant_square = next_ep_square.clone();
+
+        if was_capture_or_pawn_move {
+            println!("there was a capture or a pawn move! resetting fifty move counter");
+            self.fifty_move_counter = 0;
+        } else {
+            self.fifty_move_counter += 1;
+        }
+
+        if next_ep_square.is_some() {
+            println!("new ep!!: {}", next_ep_square.unwrap());
+        }
 
         Ok(())
     }
@@ -1016,7 +1087,7 @@ mod move_processor {
 
     fn get_pawn_capture(
         the_move: move_parser::Move,
-        last_move: Option<Move>,
+        ep_square: Option<Tile>,
         board: &Board,
     ) -> Result<Move, MoveParseError> {
         let mut file_from = '-';
@@ -1076,7 +1147,7 @@ mod move_processor {
                 TeamedChessPiece(board.whose_turn, ChessPiece::Pawn),
                 tile_from.unwrap(),
                 tile_to.unwrap(),
-                last_move,
+                ep_square,
                 board,
                 &mut is_en_passant,
             )
@@ -1157,7 +1228,7 @@ mod move_processor {
         let moves = moves.unwrap();
 
         //Processing parser output
-        let last_move = game.get_last_move();
+        let ep_square = game.en_passant_square;
         let board = game.get_board();
 
         let mut the_move: Option<Move> = None;
@@ -1183,7 +1254,7 @@ mod move_processor {
                     }
                     // pawn capture
                     else if piece.0 == '-' {
-                        piece_move = get_pawn_capture(move_i, last_move, &board);
+                        piece_move = get_pawn_capture(move_i, ep_square, &board);
                     }
                     // non-pawn move
                     else {
@@ -1223,7 +1294,7 @@ pub fn is_piece_move_legal(
     piece: TeamedChessPiece,
     tile_from: Tile,
     tile_to: Tile,
-    last_move: Option<Move>,
+    ep_square: Option<Tile>,
     board: &Board,
     is_en_passant: &mut bool,
 ) -> bool {
@@ -1292,49 +1363,55 @@ pub fn is_piece_move_legal(
                     }
                 }
                 //en passant
-                else if (board.whose_turn == ChessTeam::Black && tile_to_coord.y == 2)
-                    || (board.whose_turn == ChessTeam::White && tile_to_coord.y == 5)
-                {
-                    // get last move
-                    if let Some(Move::PieceMove {
-                        piece: ChessPiece::Pawn,
-                        tile_from: last_tile_from,
-                        tile_to: last_tile_to,
-                        is_en_passant: _,
-                    }) = last_move
-                    {
-                        let last_tile_from = Coord::from(last_tile_from);
-                        let last_tile_to = Coord::from(last_tile_to);
-
-                        if (board.whose_turn == ChessTeam::Black
-                            && last_tile_from
-                                == Coord {
-                                    x: tile_to_coord.x,
-                                    y: 1,
-                                }
-                            && last_tile_to
-                                == Coord {
-                                    x: tile_to_coord.x,
-                                    y: 3,
-                                })
-                            || (board.whose_turn == ChessTeam::White
-                                && last_tile_from
-                                    == Coord {
-                                        x: tile_to_coord.x,
-                                        y: 6,
-                                    }
-                                && last_tile_to
-                                    == Coord {
-                                        x: tile_to_coord.x,
-                                        y: 4,
-                                    })
-                        {
-                            //this is en pasant, return true
-                            *is_en_passant = true;
-                            return true;
-                        }
-                    }
+                else if ep_square.is_some() &&
+                        Coord::from(ep_square.unwrap()) == tile_to_coord {
+                    *is_en_passant = true;
+                    return true;
                 }
+                ////en passant
+                //else if (board.whose_turn == ChessTeam::Black && tile_to_coord.y == 2)
+                //    || (board.whose_turn == ChessTeam::White && tile_to_coord.y == 5)
+                //{
+                //    // get last move
+                //    if let Some(Move::PieceMove {
+                //        piece: ChessPiece::Pawn,
+                //        tile_from: last_tile_from,
+                //        tile_to: last_tile_to,
+                //        is_en_passant: _,
+                //    }) = last_move
+                //    {
+                //        let last_tile_from = Coord::from(last_tile_from);
+                //        let last_tile_to = Coord::from(last_tile_to);
+
+                //        if (board.whose_turn == ChessTeam::Black
+                //            && last_tile_from
+                //                == Coord {
+                //                    x: tile_to_coord.x,
+                //                    y: 1,
+                //                }
+                //            && last_tile_to
+                //                == Coord {
+                //                    x: tile_to_coord.x,
+                //                    y: 3,
+                //                })
+                //            || (board.whose_turn == ChessTeam::White
+                //                && last_tile_from
+                //                    == Coord {
+                //                        x: tile_to_coord.x,
+                //                        y: 6,
+                //                    }
+                //                && last_tile_to
+                //                    == Coord {
+                //                        x: tile_to_coord.x,
+                //                        y: 4,
+                //                    })
+                //        {
+                //            //this is en pasant, return true
+                //            *is_en_passant = true;
+                //            return true;
+                //        }
+                //    }
+                //}
             }
 
             false
@@ -1571,7 +1648,7 @@ impl Board {
     pub fn get_legal_moves_of_piece_in_tile(
         &self,
         tile: Tile,
-        last_move: Option<Move>,
+        ep_square: Option<Tile>,
     ) -> Option<Vec<Coord>> {
         let piece = self.get_piece(tile)?;
         let piece_type = piece.1;
@@ -1729,7 +1806,7 @@ impl Board {
                 piece,
                 tile,
                 Tile::try_from(*coord_to).unwrap(),
-                last_move,
+                ep_square,
                 &self,
                 &mut false,
             )
@@ -1752,18 +1829,18 @@ impl Board {
             // NOTE(lucypero): we ignore things like en_passant and promotion piece because
             //  that would not affect if the player's king is in check.
             future_board.apply_move(the_move);
-            !future_board.is_team_in_check(self.whose_turn, Some(the_move))
+            !future_board.is_team_in_check(self.whose_turn, the_move.get_en_passant_square())
         });
 
         Some(moves)
     }
 
-    pub fn is_team_in_check(&self, team: ChessTeam, last_move: Option<Move>) -> bool {
+    pub fn is_team_in_check(&self, team: ChessTeam, ep_square: Option<Tile>) -> bool {
         let king_coord = self.find_pieces(team, ChessPiece::King)[0];
         self.is_tile_attacked_by(
             team.the_other_one(),
             Tile::try_from(king_coord).unwrap(),
-            last_move,
+            ep_square,
         )
     }
 
@@ -1772,14 +1849,14 @@ impl Board {
         &self,
         team: ChessTeam,
         tile: Tile,
-        last_move: Option<Move>,
+        ep_square: Option<Tile>,
     ) -> bool {
         //.1 get all pieces of team
         let pieces = self.find_pieces_of_team(team);
 
         //.2 for each of that piece, check if it is legal to take on tile
         for piece in pieces {
-            if is_piece_move_legal(piece.0, piece.1, tile, last_move, &self, &mut false) {
+            if is_piece_move_legal(piece.0, piece.1, tile, ep_square, &self, &mut false) {
                 return true;
             }
         }
@@ -1814,7 +1891,11 @@ impl Board {
         result
     }
 
-    pub fn apply_move(&mut self, chess_move: Move) {
+    //return if the move was a capture or not
+    pub fn apply_move(&mut self, chess_move: Move) -> bool {
+
+        let mut was_capture = false;
+
         match chess_move {
             Move::PieceMove {
                 piece: piece_type,
@@ -1823,7 +1904,9 @@ impl Board {
                 is_en_passant,
             } => {
                 let piece = self.piece_locations.remove(&tile_from).unwrap();
-                self.piece_locations.insert(tile_to, piece);
+                if self.piece_locations.insert(tile_to, piece).is_some() {
+                    was_capture = true;
+                }
 
                 //must remove captured pawn if en_passant
                 if is_en_passant {
@@ -1838,6 +1921,8 @@ impl Board {
                     }
                     self.piece_locations
                         .remove(&Tile::try_from(captured_pawn_coord).unwrap());
+
+                    was_capture = true;
                 }
 
                 //update castling rights if necessary
@@ -1879,8 +1964,10 @@ impl Board {
                 promotion,
             } => {
                 self.piece_locations.remove(&tile_from);
-                self.piece_locations
-                    .insert(tile_to, TeamedChessPiece(self.whose_turn, promotion));
+                if self.piece_locations
+                    .insert(tile_to, TeamedChessPiece(self.whose_turn, promotion)).is_some() {
+                        was_capture = true;
+                }
             }
             Move::CastleShort => match self.whose_turn {
                 ChessTeam::Black => {
@@ -1949,6 +2036,7 @@ impl Board {
         }
 
         self.whose_turn = self.whose_turn.the_other_one();
+        was_capture
     }
 
     pub fn get_piece(&self, tile: Tile) -> Option<TeamedChessPiece> {
@@ -2121,8 +2209,8 @@ Available commands:
                     );
                     break;
                 }
-                GameEndState::Stalemate => {
-                    println!("It's a stalemate! Game is drawn!");
+                GameEndState::Draw => {
+                    println!("It's a draw!");
                     break;
                 }
                 GameEndState::Running => {
@@ -2232,9 +2320,72 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
 
     }
 
-    // TODO(lucypero): Parse en passant target square, half moves and full move counter
+    //parsing en passant square
 
-    println!("Whose turn: {}, castling rights: {:?}", whose_turn, castling_rights);
+    i+=1;
+
+    let en_passant_square: Option<Tile>;
+    
+    if chars[i] == '-' {
+        en_passant_square = None;
+        i+=1;
+    } else {
+        let tile_file = chars[i];
+        let tile_rank = chars[i+1].to_digit(10).unwrap() - 1;
+
+        let tile_file = match tile_file {
+            'a' => 0,
+            'b' => 1,
+            'c' => 2,
+            'd' => 3,
+            'e' => 4,
+            'f' => 5,
+            'g' => 6,
+            'h' => 7,
+            _ => panic!("what file is this")
+        };
+
+        let the_tile = Tile::try_from(Coord{x:tile_file, y:tile_rank as i32}).unwrap();
+        i+=2;
+
+        en_passant_square = Some(the_tile);
+        println!("en passant square is {}", the_tile);
+    }
+
+    //parsing half move clock (fifty move rule)
+    i+=1;
+
+    let mut num_len = 0;
+
+    loop {
+        if chars[i+num_len] >= '0' && chars[i+num_len] <= '9' {
+            num_len+=1;
+        } else {
+            break;
+        }
+    }
+
+    let num_str = chars[i..i+num_len].iter().collect::<String>();
+    let fifty_move_counter = num_str.parse::<u32>().unwrap();
+
+    //parsing full move counter
+
+    i+=num_len+1; 
+
+    num_len = 0;
+
+    loop {
+        if chars.len() > i+num_len && chars[i+num_len] >= '0' && chars[i+num_len] <= '9' {
+            num_len+=1;
+        } else {
+            break;
+        }
+    }
+
+    let num_str = chars[i..i+num_len].iter().collect::<String>();
+    let full_move_counter = num_str.parse::<u32>().unwrap();
+
+    println!("Whose turn: {}, castling rights: {:?}, fifty_move_counter: {}, full_move_counter = {}", whose_turn, castling_rights, fifty_move_counter, full_move_counter);
 
     let board = Board {
         whose_turn,
@@ -2242,7 +2393,14 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
         castling_rights
     };
 
-    Some(GameState::init_from_custom_position(board))
+    Some(GameState {
+        moves: vec![],
+        starting_board: board,
+        cached_current_board: None,
+        starting_move_count: full_move_counter,
+        en_passant_square,
+        fifty_move_counter,
+    })
 }
 
 pub fn get_test(test: String) -> Option<GameState> {
