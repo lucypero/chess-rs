@@ -148,6 +148,8 @@ pub struct GfxState {
     coord_on_right_click_press: Option<Coord>,
     coord_on_right_click_release: Option<Coord>,
     arrows: Vec<Arrow>,
+
+    //viewed move (could be any move, not just the last one)
     viewed_move: usize,
 
     //promotion
@@ -548,6 +550,11 @@ impl GfxState {
             draw_rectangle(col_to.x, col_to.y, col_to.w, col_to.h, LAST_MOVE_COLOR);
         }
 
+        // if you click and you are watching a previous move, jump to last move
+        if input::is_mouse_button_down(MouseButton::Left) && self.viewed_move != game.move_count() {
+            self.show_move(game, game.move_count());
+        }
+
         // cycle move display with arrow_left and arrow_right
         if input::is_key_pressed(KeyCode::Left) { 
             self.show_move(game, cmp::max(0,self.viewed_move as i32 - 1) as usize);
@@ -594,7 +601,7 @@ impl GfxState {
             self.sync_board(&game.get_board());
         }
 
-        if input::is_mouse_button_pressed(MouseButton::Left) && !self.is_dragged {
+        if input::is_mouse_button_pressed(MouseButton::Left) && !self.is_dragged && self.viewed_move == game.move_count() {
             // println!("mouse click! at {:?}", input::mouse_position());
             //check if u clicked the box
             let mouse_vec = input::mouse_position();

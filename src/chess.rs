@@ -298,7 +298,7 @@ impl Coord {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct TeamedChessPiece(pub ChessTeam, pub ChessPiece);
 
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive, Hash, Copy, Clone)]
@@ -505,9 +505,9 @@ impl fmt::Display for Move {
 pub struct GameState {
     moves: Vec<Move>,
     cached_current_board: Option<Board>,
-    fifty_move_counter: u32, //the number of halfmoves since the last capture or pawn advance
+    pub fifty_move_counter: u32, //the number of halfmoves since the last capture or pawn advance
     starting_board: Board,
-    starting_move_count: u32, //The number of the full move (before moves start being counted). It starts at 1, and is incremented after Black's move.
+    pub starting_move_count: u32, //The number of the full move (before moves start being counted). It starts at 1, and is incremented after Black's move.
     pub en_passant_square: Option<Tile>
 }
 
@@ -590,6 +590,7 @@ impl GameState {
         self.moves.last().copied()
     }
 
+    //returns the length of the recorded moves (not the actual number of moves since game start)
     pub fn move_count(&self) -> usize {
         self.moves.len()
     }
@@ -1468,7 +1469,7 @@ pub fn is_piece_move_legal(
 #[derive(Clone)]
 pub struct Board {
     pub whose_turn: ChessTeam,
-    piece_locations: HashMap<Tile, TeamedChessPiece>,
+    pub piece_locations: HashMap<Tile, TeamedChessPiece>,
     castling_rights: (bool, bool, bool, bool), // (white short castle, white long castle, black short castle, black long castle)
 }
 
@@ -2257,27 +2258,26 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
             break;
         }
 
-        // if file > 7 {
-        //     i+=1;
-        //     println!("continuing");
-        //     continue;
-        // }
-
         let c = chars[i];
 
         if c == '/' {
+
+            if file != 8 {
+                return None;
+            }
+
             rank -= 1;
             file = 0;
         }
         else if c >= '1' && c <= '8' {
             //get number
-            let n = c.to_digit(10).unwrap();
+            let n = c.to_digit(10)?;
             file+=n as i32;
         }
         //get piece type
         else if let Some(p) = get_teamed_piece(c) {
             //place piece in board
-            let tile = Tile::try_from(Coord{x:file, y: rank}).unwrap();
+            let tile = Tile::try_from(Coord{x:file, y: rank}).ok()?;
             piece_locations.insert(tile, p);
             file+=1;
         } 
@@ -2285,8 +2285,16 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
         i+=1;
     }
 
+    if rank != 0 || file !=8 {
+        return None;
+    }
+
     //parsing active color
     i+=1;
+    if i >= chars.len() {
+        return None;
+    }
+
     let active_color = chars[i];
     let whose_turn; 
     if active_color == 'b' {
@@ -2299,8 +2307,18 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
 
     //parsing castling rights
     i+=2;
+    if i >= chars.len() {
+        return None;
+    }
+
     if chars[i] != '-' {
         loop {
+
+            if i >= chars.len() {
+                return None;
+            }
+
+
             if chars[i] == ' ' {
                 break;
             }
@@ -2318,20 +2336,25 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
             i+=1;
         }
 
+        i+=1;
+
+    } else {
+        i+=2;
     }
 
     //parsing en passant square
-
-    i+=1;
-
     let en_passant_square: Option<Tile>;
+
+    if i >= chars.len() {
+        return None;
+    }
     
     if chars[i] == '-' {
         en_passant_square = None;
         i+=1;
     } else {
         let tile_file = chars[i];
-        let tile_rank = chars[i+1].to_digit(10).unwrap() - 1;
+        let tile_rank = chars[i+1].to_digit(10)? - 1;
 
         let tile_file = match tile_file {
             'a' => 0,
@@ -2345,11 +2368,10 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
             _ => panic!("what file is this")
         };
 
-        let the_tile = Tile::try_from(Coord{x:tile_file, y:tile_rank as i32}).unwrap();
+        let the_tile = Tile::try_from(Coord{x:tile_file, y:tile_rank as i32}).ok()?;
         i+=2;
 
         en_passant_square = Some(the_tile);
-        println!("en passant square is {}", the_tile);
     }
 
     //parsing half move clock (fifty move rule)
@@ -2358,6 +2380,11 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
     let mut num_len = 0;
 
     loop {
+
+        if i+num_len >= chars.len() {
+            return None;
+        }
+
         if chars[i+num_len] >= '0' && chars[i+num_len] <= '9' {
             num_len+=1;
         } else {
@@ -2366,7 +2393,7 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
     }
 
     let num_str = chars[i..i+num_len].iter().collect::<String>();
-    let fifty_move_counter = num_str.parse::<u32>().unwrap();
+    let fifty_move_counter = num_str.parse::<u32>().ok()?;
 
     //parsing full move counter
 
@@ -2383,9 +2410,7 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
     }
 
     let num_str = chars[i..i+num_len].iter().collect::<String>();
-    let full_move_counter = num_str.parse::<u32>().unwrap();
-
-    println!("Whose turn: {}, castling rights: {:?}, fifty_move_counter: {}, full_move_counter = {}", whose_turn, castling_rights, fifty_move_counter, full_move_counter);
+    let full_move_counter = num_str.parse::<u32>().ok()?;
 
     let board = Board {
         whose_turn,
@@ -2449,4 +2474,159 @@ pub fn get_test(test: String) -> Option<GameState> {
             _ => {}
         }
     None
+}
+
+#[cfg(test)]
+mod fen_tests {
+
+    use super::*;
+
+    use std::array::IntoIter;
+    use std::iter::FromIterator;
+
+    use Tile::*;
+    use ChessPiece::*;
+    use ChessTeam::*;
+
+    fn assert_game(game: &mut GameState, 
+        piece_locations: HashMap<Tile, TeamedChessPiece>,
+        whose_turn: ChessTeam,
+        castling_rights: (bool,bool,bool,bool),
+        ep_square: Option<Tile>,
+        fifty_move_counter: u32,
+        full_move_counter: u32) {
+
+        //checking if hashmaps are equal
+
+        let g_piece_locations = game.get_board().piece_locations.clone();
+
+        assert!(g_piece_locations.len() == piece_locations.len() &&
+                g_piece_locations.keys().all(|k| {
+                    let v1 = g_piece_locations.get(k).copied().unwrap();
+                    let v2 = piece_locations.get(k).copied().unwrap();
+                    v1 == v2
+                }));
+
+        assert_eq!(game.whose_turn(), whose_turn);
+        assert_eq!(game.get_board().castling_rights, castling_rights);
+        assert_eq!(game.en_passant_square, ep_square);
+        assert_eq!(game.fifty_move_counter, fifty_move_counter);
+        assert_eq!(game.starting_move_count, full_move_counter);
+    }
+
+    #[test]
+    fn correct_fens() {
+
+        let chess_pieces = HashMap::<_, _>::from_iter(IntoIter::new( [
+                (F8, TeamedChessPiece(Black, King)),
+                (F7, TeamedChessPiece(Black, Pawn)),
+                (G6, TeamedChessPiece(Black, Pawn)),
+                (C4, TeamedChessPiece(Black, Knight)),
+                (H3, TeamedChessPiece(Black, Pawn)),
+                (G2, TeamedChessPiece(Black, Rook)),
+                (G4, TeamedChessPiece(White, Pawn)),
+                (F3, TeamedChessPiece(White, Pawn)),
+                (H2, TeamedChessPiece(White, Pawn)),
+                (D3, TeamedChessPiece(White, Rook)),
+                (G3, TeamedChessPiece(White, Knight)),
+                (H1, TeamedChessPiece(White, King)),
+        ]));
+
+        // no ep square, no castling
+        let mut game = parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rP/7K w - - 0 54".to_string()).unwrap();
+        assert_game(&mut game,
+            chess_pieces.clone(),
+            ChessTeam::White, 
+            (false, false, false, false),
+            None,
+            0,
+            54
+        );
+
+        // testing castling, no ep square
+
+        let mut game = parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rP/7K w KQ - 0 54".to_string()).unwrap();
+        assert_game(&mut game,
+            chess_pieces.clone(),
+            ChessTeam::White, 
+            (true, true, false, false),
+            None,
+            0,
+            54
+        );
+
+        let mut game = parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rP/7K w KQkq - 0 54".to_string()).unwrap();
+        assert_game(&mut game,
+            chess_pieces.clone(),
+            ChessTeam::White, 
+            (true, true, true, true),
+            None,
+            0,
+            54
+        );
+
+        let mut game = parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rP/7K w kq - 0 54".to_string()).unwrap();
+        assert_game(&mut game,
+            chess_pieces.clone(),
+            ChessTeam::White, 
+            (false, false, true, true),
+            None,
+            0,
+            54
+        );
+
+        let mut game = parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rP/7K w KQk - 0 54".to_string()).unwrap();
+        assert_game(&mut game,
+            chess_pieces.clone(),
+            ChessTeam::White, 
+            (true, true, true, false),
+            None,
+            0,
+            54
+        );
+
+        let mut game = parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rP/7K w Qq - 0 54".to_string()).unwrap();
+        assert_game(&mut game,
+            chess_pieces.clone(),
+            ChessTeam::White, 
+            (false, true, false, true),
+            None,
+            0,
+            54
+        );
+
+        // ep square and castling
+        let mut game = parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rP/7K w Qq e3 0 54".to_string()).unwrap();
+        assert_game(&mut game,
+            chess_pieces.clone(),
+            ChessTeam::White, 
+            (false, true, false, true),
+            Some(E3),
+            0,
+            54
+        );
+
+        // ep square and no castling
+        let mut game = parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rP/7K w - e3 0 54".to_string()).unwrap();
+        assert_game(&mut game,
+            chess_pieces.clone(),
+            ChessTeam::White, 
+            (false, false, false, false),
+            Some(E3),
+            0,
+            54
+        );
+    }
+
+    #[test]
+    fn incorrect_fens() {
+        // ep square and no castling
+        assert!(parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rP/7K w - e3 0 ".to_string()).is_none());
+        assert!(parse_fen("5k2/5p2/6p1/8/2n3P1/3R1Pp/6rP/7K w - e3 0 54".to_string()).is_none());
+        assert!(parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/2rP/7K w - e3 0 54".to_string()).is_none());
+        assert!(parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rPw/7K e3 0 54".to_string()).is_none());
+        assert!(parse_fen("5k2/5p2/6p1/8/2n3P1/3R1PNp/6rPw/7K e".to_string()).is_none());
+        assert!(parse_fen("w - e3 0 2".to_string()).is_none());
+    }
+
 }
