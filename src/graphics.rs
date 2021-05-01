@@ -190,11 +190,8 @@ impl GfxState {
         let skin1 = {
             let label_style = root_ui()
                 .style_builder()
-                .font(include_bytes!(
-                    "/usr/share/fonts/TTF/Inconsolata-Expanded.ttf"
-                ))
                 // .text_color(Color::from_rgba(180, 180, 120, 255))
-                .font_size(15)
+                .font_size(18)
                 .build();
 
             let button_style = root_ui()
@@ -207,11 +204,8 @@ impl GfxState {
                 .margin(RectOffset::new(5.0, 5.0, 5.0, 5.0))
                 .color_hovered(Color::from_rgba(200, 200, 200, 255))
                 .color_selected(Color::from_rgba(200, 200, 200, 255))
-                .font(include_bytes!(
-                    "/usr/share/fonts/TTF/Inconsolata-Expanded.ttf"
-                ))
                 // .text_color(Color::from_rgba(180, 180, 100, 255))
-                .font_size(15)
+                .font_size(18)
                 .build();
 
             Skin {
