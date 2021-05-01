@@ -24,7 +24,7 @@ mod move_parser_tests {
             "Bbxb4 e.p.#",
             Move{
                 primary: MovePrimary::PieceMove{
-                    piece: ('B', 'b', '-'), 
+                    piece: ('B', 'b', '-'),
                     destination: ('b', '4'),
                     promotion: '-'
                 },
@@ -43,40 +43,39 @@ mod move_parser_tests {
         );
 
         // castling
-        assert_move_vec_eq("O-O-O+", 
-            Move{
+        assert_move_vec_eq(
+            "O-O-O+",
+            Move {
                 primary: MovePrimary::CastleLong,
                 check: true,
                 checkmate: false,
                 en_passant: false,
                 captures: false,
-            }
-            // vec![Node::CastleLong, Node::Check]
-            );
+            }, // vec![Node::CastleLong, Node::Check]
+        );
 
         // pawn move
-        assert_move_vec_eq("e4", 
-
-            Move{
-                primary: MovePrimary::PieceMove{
-                    piece: ('-', '-', '-'), 
+        assert_move_vec_eq(
+            "e4",
+            Move {
+                primary: MovePrimary::PieceMove {
+                    piece: ('-', '-', '-'),
                     destination: ('e', '4'),
-                    promotion: '-'
+                    promotion: '-',
                 },
                 check: false,
                 checkmate: false,
                 en_passant: false,
                 captures: false,
-            }
-            // vec![Node::Destination('e', '4')]
-            );
+            }, // vec![Node::Destination('e', '4')]
+        );
 
         //pawn captures
         assert_move_vec_eq(
             "exd5",
             Move{
                 primary: MovePrimary::PieceMove{
-                    piece: ('-', 'e', '-'), 
+                    piece: ('-', 'e', '-'),
                     destination: ('d', '5'),
                     promotion: '-'
                 },
@@ -96,7 +95,7 @@ mod move_parser_tests {
             "ed#",
             Move{
                 primary: MovePrimary::PieceMove{
-                    piece: ('-', 'e', '-'), 
+                    piece: ('-', 'e', '-'),
                     destination: ('d', '-'),
                     promotion: '-'
                 },
@@ -115,20 +114,17 @@ mod move_parser_tests {
         //promoting
         assert_move_vec_eq(
             "e8=Q",
-
-            Move{
-                primary: MovePrimary::PieceMove{
-                    piece: ('-', '-', '-'), 
+            Move {
+                primary: MovePrimary::PieceMove {
+                    piece: ('-', '-', '-'),
                     destination: ('e', '8'),
-                    promotion: 'Q'
+                    promotion: 'Q',
                 },
                 check: false,
                 checkmate: false,
                 en_passant: false,
                 captures: false,
-            }
-
-            // vec![Node::Destination('e', '8'), Node::PawnPromotion('Q')],
+            }, // vec![Node::Destination('e', '8'), Node::PawnPromotion('Q')],
         );
 
         assert_move_vec_eq(
@@ -136,7 +132,7 @@ mod move_parser_tests {
 
             Move{
                 primary: MovePrimary::PieceMove{
-                    piece: ('-', 'e', '-'), 
+                    piece: ('-', 'e', '-'),
                     destination: ('d', '-'),
                     promotion: 'Q'
                 },
@@ -160,7 +156,7 @@ mod move_parser_tests {
             vec![
             Move{
                 primary: MovePrimary::PieceMove{
-                    piece: ('-', 'b', '-'), 
+                    piece: ('-', 'b', '-'),
                     destination: ('c', '4'),
                     promotion: '-'
                 },
@@ -171,7 +167,7 @@ mod move_parser_tests {
             },
             Move{
                 primary: MovePrimary::PieceMove{
-                    piece: ('b', '-', '-'), 
+                    piece: ('b', '-', '-'),
                     destination: ('c', '4'),
                     promotion: '-'
                 },
@@ -191,20 +187,17 @@ mod move_parser_tests {
         //only one interpretation because B is capitalized (bishop move)
         assert_move_vec_eq(
             "Bc4",
-
-            Move{
-                primary: MovePrimary::PieceMove{
-                    piece: ('B', '-', '-'), 
+            Move {
+                primary: MovePrimary::PieceMove {
+                    piece: ('B', '-', '-'),
                     destination: ('c', '4'),
-                    promotion: '-'
+                    promotion: '-',
                 },
                 check: false,
                 checkmate: false,
                 en_passant: false,
                 captures: false,
-            }
-
-            // vec![Node::Piece('B', '-', '-'), Node::Destination('c', '4')],
+            }, // vec![Node::Piece('B', '-', '-'), Node::Destination('c', '4')],
         );
     }
 }

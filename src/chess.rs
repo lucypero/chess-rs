@@ -270,6 +270,24 @@ impl ops::Mul<i32> for Coord {
 }
 
 impl Coord {
+    pub fn get_file_char(&self) -> char {
+        return match self.x {
+            0 => 'a',
+            1 => 'b',
+            2 => 'c',
+            3 => 'd',
+            4 => 'e',
+            5 => 'f',
+            6 => 'g',
+            7 => 'h',
+            _ => panic!(),
+        };
+    }
+
+    pub fn get_rank_char(&self) -> char {
+        std::char::from_digit((self.y + 1) as u32, 10).unwrap()
+    }
+
     //  other - self
     pub fn distance(&self, other: Coord) -> Coord {
         Coord {
@@ -435,25 +453,31 @@ pub enum Move {
 
 impl Move {
     fn get_en_passant_square(&self) -> Option<Tile> {
-
-        if let Move::PieceMove{piece: piece_type, tile_from, tile_to, is_en_passant:_} = self {
-
+        if let Move::PieceMove {
+            piece: piece_type,
+            tile_from,
+            tile_to,
+            is_en_passant: _,
+        } = self
+        {
             let tile_from_coord = Coord::from(*tile_from);
             let tile_to_coord = Coord::from(*tile_to);
 
-            if *piece_type == ChessPiece::Pawn && 
-                ( (tile_from_coord.y == 1 && tile_to_coord.y == 3) ||
-                  (tile_from_coord.y == 6 && tile_to_coord.y == 4) ) {
-                    //get ep square
+            if *piece_type == ChessPiece::Pawn
+                && ((tile_from_coord.y == 1 && tile_to_coord.y == 3)
+                    || (tile_from_coord.y == 6 && tile_to_coord.y == 4))
+            {
+                //get ep square
 
-                let ep_y = if tile_to_coord.y == 3 { 
-                    2
-                } else {
-                    5
-                };
+                let ep_y = if tile_to_coord.y == 3 { 2 } else { 5 };
 
-                return Some(Tile::try_from(
-                        Coord{x:tile_from_coord.x, y: ep_y }).unwrap());
+                return Some(
+                    Tile::try_from(Coord {
+                        x: tile_from_coord.x,
+                        y: ep_y,
+                    })
+                    .unwrap(),
+                );
             }
         }
 
@@ -508,9 +532,10 @@ pub struct GameState {
     pub fifty_move_counter: u32, //the number of halfmoves since the last capture or pawn advance
     starting_board: Board,
     pub starting_move_count: u32, //The number of the full move (before moves start being counted). It starts at 1, and is incremented after Black's move.
-    pub en_passant_square: Option<Tile>
+    pub en_passant_square: Option<Tile>,
 }
 
+#[derive(PartialEq)]
 pub enum GameEndState {
     Checkmate,
     Draw,
@@ -541,7 +566,6 @@ impl GameState {
     }
 
     pub fn get_end_state(&mut self) -> GameEndState {
-
         // fifty move rule
         if self.fifty_move_counter == 50 {
             println!("50 move rule!!! hahahaha");
@@ -557,7 +581,8 @@ impl GameState {
 
         let team_pieces = self.get_board().find_pieces_of_team(whose_turn);
         for piece in team_pieces {
-            if !self.get_board()
+            if !self
+                .get_board()
                 .get_legal_moves_of_piece_in_tile(piece.1, ep_square)
                 .unwrap()
                 .is_empty()
@@ -795,8 +820,7 @@ impl GameState {
                 };
 
                 for tile in tiles_king {
-                    if board.is_tile_attacked_by(whose_turn.the_other_one(), tile, ep_square)
-                    {
+                    if board.is_tile_attacked_by(whose_turn.the_other_one(), tile, ep_square) {
                         return Err(MoveError::CastlingThroughCheck);
                     }
                 }
@@ -813,7 +837,7 @@ impl GameState {
         if future_board.apply_move(chess_move) {
             was_capture_or_pawn_move = true;
         }
-        
+
         // 2. in that board, check if the king is attacked
 
         //finding king tile
@@ -829,59 +853,154 @@ impl GameState {
         //Everything is good. adding move to self.moves
         self.moves.push(chess_move);
         self.cached_current_board = None;
-        self.en_passant_square = next_ep_square.clone();
+        self.en_passant_square = next_ep_square;
 
         if was_capture_or_pawn_move {
-            println!("there was a capture or a pawn move! resetting fifty move counter");
             self.fifty_move_counter = 0;
         } else {
             self.fifty_move_counter += 1;
         }
 
-        if next_ep_square.is_some() {
-            println!("new ep!!: {}", next_ep_square.unwrap());
-        }
-
         Ok(())
     }
 
-    pub fn get_move_in_chess_notation(&self, move_i: usize) -> String{
+    pub fn get_move_in_chess_notation(&mut self, move_i: usize) -> String {
+        let mut final_move_str = String::new();
+
         let the_move = self.moves[move_i];
 
-        fn piece_to_str(p : ChessPiece) -> String {
+        fn piece_to_str(p: ChessPiece) -> String {
             let p_str = match p {
-                    ChessPiece::Pawn => "",
-                    ChessPiece::Rook => "R",
-                    ChessPiece::Knight => "K",
-                    ChessPiece::Bishop => "B",
-                    ChessPiece::Queen => "Q",
-                    ChessPiece::King => "K"
-                };
+                ChessPiece::Pawn => "",
+                ChessPiece::Rook => "R",
+                ChessPiece::Knight => "K",
+                ChessPiece::Bishop => "B",
+                ChessPiece::Queen => "Q",
+                ChessPiece::King => "K",
+            };
             p_str.to_string()
         }
 
+        let prev_board = self.get_board_at(move_i);
+        let mut board = prev_board.clone();
+        let was_capture = board.apply_move(the_move);
+        let capture_str = if was_capture { "x" } else { "" };
+
         let basic_move = match the_move {
-            Move::PieceMove{piece, tile_from:_, tile_to, is_en_passant:_} => {
+            Move::PieceMove {
+                piece,
+                tile_from,
+                tile_to,
+                is_en_passant: _,
+            } => {
                 let piece_str = piece_to_str(piece);
                 let tile_to_str = &format!("{}", tile_to);
-                piece_str.to_string() + tile_to_str
+
+                let coord_from = Coord::from(tile_from);
+
+                if piece == ChessPiece::Pawn && was_capture {
+                    let tile_from_char = Coord::from(tile_from).get_file_char();
+                    let mut res = String::new();
+                    res.push(tile_from_char);
+                    res + capture_str + tile_to_str
+                } else {
+                    //get pieces of same type and team that can make the same move
+                    let mut pieces = prev_board.find_pieces(prev_board.whose_turn, piece);
+                    pieces.retain(move |&p| {
+                        let tile_from = Tile::try_from(p).unwrap();
+                        is_piece_move_legal(
+                            TeamedChessPiece(prev_board.whose_turn, piece),
+                            tile_from,
+                            tile_to,
+                            None,
+                            &prev_board,
+                            &mut false,
+                        )
+                    });
+                    //take out the piece that made the move
+                    pieces.retain(|p| *p != coord_from);
+
+                    if pieces.len() == 0 {
+                        piece_str.to_string() + capture_str + tile_to_str
+                    } else {
+                        let mut unique_file = true;
+                        let mut unique_rank = true;
+
+                        for p in pieces {
+                            if p.x == coord_from.x {
+                                unique_file = false;
+                            }
+                            if p.y == coord_from.y {
+                                unique_rank = false;
+                            }
+                        }
+
+                        let mut specif_str = String::new();
+
+                        if unique_file {
+                            let file_char = Coord::from(tile_from).get_file_char();
+                            specif_str.push(file_char);
+                        } else if unique_rank {
+                            let rank_char = Coord::from(tile_from).get_rank_char();
+                            specif_str.push(rank_char);
+                        } else {
+                            let file_char = Coord::from(tile_from).get_file_char();
+                            let rank_char = Coord::from(tile_from).get_rank_char();
+                            specif_str.push(file_char);
+                            specif_str.push(rank_char);
+                        }
+
+                        specif_str + &piece_str + capture_str + tile_to_str
+                    }
+                }
             }
-            Move::PieceMoveWithPromotion{tile_from: _, tile_to, promotion} => {
+            Move::PieceMoveWithPromotion {
+                tile_from,
+                tile_to,
+                promotion,
+            } => {
                 let piece_str = piece_to_str(promotion);
                 let tile_to_str = &format!("{}", tile_to);
-                tile_to_str.to_string() + "=" + &piece_str
+
+                if was_capture {
+                    let tile_from_file_char = Coord::from(tile_from).get_file_char();
+                    let mut res = String::new();
+                    res.push(tile_from_file_char);
+                    res + "x" + tile_to_str + "=" + &piece_str
+                } else {
+                    tile_to_str.to_string() + "=" + &piece_str
+                }
             }
-            Move::CastleShort => {
-                "O-O".to_string()
-            }
-            Move::CastleLong  => {
-                "O-O-O".to_string()
-            }
+            Move::CastleShort => "O-O".to_string(),
+            Move::CastleLong => "O-O-O".to_string(),
         };
 
-        // TODO(lucypero): Check, checkmate, en passant, etc
+        final_move_str += &basic_move;
 
-        basic_move
+        // en passant
+        if let Move::PieceMove {
+            piece: _,
+            tile_from: _,
+            tile_to: _,
+            is_en_passant,
+        } = the_move
+        {
+            if is_en_passant {
+                final_move_str += " e.p.";
+            }
+        }
+
+        // Check / checkmate
+
+        //if last move and end game is checkmate, then move is checkmate
+        if move_i == self.move_count() - 1 && self.get_end_state() == GameEndState::Checkmate {
+            final_move_str += "#";
+        } else {
+            if board.is_team_in_check(board.whose_turn, None) {
+                final_move_str += "+";
+            }
+        }
+        final_move_str
     }
 
     // whose turn is it?
@@ -1217,7 +1336,10 @@ mod move_processor {
 
     // This uses our move parser in move_parser::parse() then processes the output
     //  It finds the right piece to move, and the destination tile, and constructs a Move
-    pub fn parse_move(mut move_input: String, game: &mut GameState) -> Result<Move, MoveParseError> {
+    pub fn parse_move(
+        mut move_input: String,
+        game: &mut GameState,
+    ) -> Result<Move, MoveParseError> {
         move_input.retain(|c| !c.is_whitespace());
 
         let moves = move_parser::parse(move_input.chars().collect());
@@ -1364,8 +1486,7 @@ pub fn is_piece_move_legal(
                     }
                 }
                 //en passant
-                else if ep_square.is_some() &&
-                        Coord::from(ep_square.unwrap()) == tile_to_coord {
+                else if ep_square.is_some() && Coord::from(ep_square.unwrap()) == tile_to_coord {
                     *is_en_passant = true;
                     return true;
                 }
@@ -1430,7 +1551,7 @@ pub fn is_piece_move_legal(
             let magn = coord_distance.magnitude();
 
             //check movement
-            !(magn.is_none() || 
+            !(magn.is_none() ||
             //line has to be a horizontal or vertical line
               (!(coord_distance.x == 0 || coord_distance.y == 0)) ||
             //check if there is a friendly piece in the way
@@ -1894,7 +2015,6 @@ impl Board {
 
     //return if the move was a capture or not
     pub fn apply_move(&mut self, chess_move: Move) -> bool {
-
         let mut was_capture = false;
 
         match chess_move {
@@ -1965,9 +2085,12 @@ impl Board {
                 promotion,
             } => {
                 self.piece_locations.remove(&tile_from);
-                if self.piece_locations
-                    .insert(tile_to, TeamedChessPiece(self.whose_turn, promotion)).is_some() {
-                        was_capture = true;
+                if self
+                    .piece_locations
+                    .insert(tile_to, TeamedChessPiece(self.whose_turn, promotion))
+                    .is_some()
+                {
+                    was_capture = true;
                 }
             }
             Move::CastleShort => match self.whose_turn {
@@ -2223,7 +2346,6 @@ Available commands:
 }
 
 pub fn parse_fen(fen: String) -> Option<GameState> {
-
     fn get_teamed_piece(c: char) -> Option<TeamedChessPiece> {
         match c {
             'r' => Some(TeamedChessPiece(ChessTeam::Black, ChessPiece::Rook)),
@@ -2239,11 +2361,11 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
             'Q' => Some(TeamedChessPiece(ChessTeam::White, ChessPiece::Queen)),
             'K' => Some(TeamedChessPiece(ChessTeam::White, ChessPiece::King)),
             'P' => Some(TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn)),
-            _ => None
+            _ => None,
         }
     }
 
-    let chars : Vec<char> = fen.as_str().chars().collect();
+    let chars: Vec<char> = fen.as_str().chars().collect();
 
     let mut i = 0;
 
@@ -2261,63 +2383,59 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
         let c = chars[i];
 
         if c == '/' {
-
             if file != 8 {
                 return None;
             }
 
             rank -= 1;
             file = 0;
-        }
-        else if c >= '1' && c <= '8' {
+        } else if c >= '1' && c <= '8' {
             //get number
             let n = c.to_digit(10)?;
-            file+=n as i32;
+            file += n as i32;
         }
         //get piece type
         else if let Some(p) = get_teamed_piece(c) {
             //place piece in board
-            let tile = Tile::try_from(Coord{x:file, y: rank}).ok()?;
+            let tile = Tile::try_from(Coord { x: file, y: rank }).ok()?;
             piece_locations.insert(tile, p);
-            file+=1;
-        } 
+            file += 1;
+        }
 
-        i+=1;
+        i += 1;
     }
 
-    if rank != 0 || file !=8 {
+    if rank != 0 || file != 8 {
         return None;
     }
 
     //parsing active color
-    i+=1;
+    i += 1;
     if i >= chars.len() {
         return None;
     }
 
     let active_color = chars[i];
-    let whose_turn; 
+    let whose_turn;
     if active_color == 'b' {
         whose_turn = ChessTeam::Black;
     } else {
         whose_turn = ChessTeam::White;
     }
 
-    let mut castling_rights = (false,false,false,false);
+    let mut castling_rights = (false, false, false, false);
 
     //parsing castling rights
-    i+=2;
+    i += 2;
     if i >= chars.len() {
         return None;
     }
 
     if chars[i] != '-' {
         loop {
-
             if i >= chars.len() {
                 return None;
             }
-
 
             if chars[i] == ' ' {
                 break;
@@ -2333,13 +2451,12 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
                 castling_rights.3 = true;
             }
 
-            i+=1;
+            i += 1;
         }
 
-        i+=1;
-
+        i += 1;
     } else {
-        i+=2;
+        i += 2;
     }
 
     //parsing en passant square
@@ -2348,13 +2465,13 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
     if i >= chars.len() {
         return None;
     }
-    
+
     if chars[i] == '-' {
         en_passant_square = None;
-        i+=1;
+        i += 1;
     } else {
         let tile_file = chars[i];
-        let tile_rank = chars[i+1].to_digit(10)? - 1;
+        let tile_rank = chars[i + 1].to_digit(10)? - 1;
 
         let tile_file = match tile_file {
             'a' => 0,
@@ -2365,57 +2482,60 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
             'f' => 5,
             'g' => 6,
             'h' => 7,
-            _ => panic!("what file is this")
+            _ => panic!("what file is this"),
         };
 
-        let the_tile = Tile::try_from(Coord{x:tile_file, y:tile_rank as i32}).ok()?;
-        i+=2;
+        let the_tile = Tile::try_from(Coord {
+            x: tile_file,
+            y: tile_rank as i32,
+        })
+        .ok()?;
+        i += 2;
 
         en_passant_square = Some(the_tile);
     }
 
     //parsing half move clock (fifty move rule)
-    i+=1;
+    i += 1;
 
     let mut num_len = 0;
 
     loop {
-
-        if i+num_len >= chars.len() {
+        if i + num_len >= chars.len() {
             return None;
         }
 
-        if chars[i+num_len] >= '0' && chars[i+num_len] <= '9' {
-            num_len+=1;
+        if chars[i + num_len] >= '0' && chars[i + num_len] <= '9' {
+            num_len += 1;
         } else {
             break;
         }
     }
 
-    let num_str = chars[i..i+num_len].iter().collect::<String>();
+    let num_str = chars[i..i + num_len].iter().collect::<String>();
     let fifty_move_counter = num_str.parse::<u32>().ok()?;
 
     //parsing full move counter
 
-    i+=num_len+1; 
+    i += num_len + 1;
 
     num_len = 0;
 
     loop {
-        if chars.len() > i+num_len && chars[i+num_len] >= '0' && chars[i+num_len] <= '9' {
-            num_len+=1;
+        if chars.len() > i + num_len && chars[i + num_len] >= '0' && chars[i + num_len] <= '9' {
+            num_len += 1;
         } else {
             break;
         }
     }
 
-    let num_str = chars[i..i+num_len].iter().collect::<String>();
+    let num_str = chars[i..i + num_len].iter().collect::<String>();
     let full_move_counter = num_str.parse::<u32>().ok()?;
 
     let board = Board {
         whose_turn,
         piece_locations,
-        castling_rights
+        castling_rights,
     };
 
     Some(GameState {
@@ -2429,50 +2549,69 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
 }
 
 pub fn get_test(test: String) -> Option<GameState> {
-        #[allow(clippy::single_match)]
-        match test.as_str() {
-            "promotion-test" => {
-                let mut piece_locations = HashMap::new();
+    #[allow(clippy::single_match)]
+    match test.as_str() {
+        "promotion-test" => {
+            let mut piece_locations = HashMap::new();
 
-                piece_locations.insert(
-                    Tile::A1,
-                    TeamedChessPiece(ChessTeam::White, ChessPiece::King),
-                );
-                piece_locations.insert(
-                    Tile::A8,
-                    TeamedChessPiece(ChessTeam::Black, ChessPiece::King),
-                );
-                piece_locations.insert(
-                    Tile::D7,
-                    TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
-                );
-                piece_locations.insert(
-                    Tile::E7,
-                    TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
-                );
-                piece_locations.insert(
-                    Tile::D2,
-                    TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn),
-                );
-                piece_locations.insert(
-                    Tile::E2,
-                    TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn),
-                );
-                piece_locations.insert(
-                    Tile::H3,
-                    TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
-                );
+            piece_locations.insert(
+                Tile::A1,
+                TeamedChessPiece(ChessTeam::White, ChessPiece::King),
+            );
+            piece_locations.insert(
+                Tile::A8,
+                TeamedChessPiece(ChessTeam::Black, ChessPiece::King),
+            );
+            piece_locations.insert(
+                Tile::D7,
+                TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
+            );
+            piece_locations.insert(
+                Tile::E7,
+                TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
+            );
+            piece_locations.insert(
+                Tile::D2,
+                TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn),
+            );
+            piece_locations.insert(
+                Tile::E2,
+                TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn),
+            );
+            piece_locations.insert(
+                Tile::H3,
+                TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
+            );
+            piece_locations.insert(
+                Tile::F8,
+                TeamedChessPiece(ChessTeam::Black, ChessPiece::Rook),
+            );
+            piece_locations.insert(
+                Tile::G4,
+                TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn),
+            );
+            piece_locations.insert(
+                Tile::C4,
+                TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn),
+            );
+            piece_locations.insert(
+                Tile::B2,
+                TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn),
+            );
 
-                let board = Board {
-                    whose_turn: ChessTeam::White,
-                    piece_locations,
-                    castling_rights: (false, false, false, false),
-                };
+            let board = Board {
+                whose_turn: ChessTeam::White,
+                piece_locations,
+                castling_rights: (false, false, false, false),
+            };
 
-                return Some(GameState::init_from_custom_position(board));
-            }
-            _ => {}
+            return Some(GameState::init_from_custom_position(board));
         }
+        "notation-test" => {
+            return Some(parse_fen("3r3r/1K1k4/8/R7/4Q2Q/8/8/R6Q w - - 0 54".to_string()).unwrap())
+        }
+        _ => {}
+    }
     None
 }
 

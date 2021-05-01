@@ -1,5 +1,5 @@
-use std::convert::TryFrom;
 use std::cmp;
+use std::convert::TryFrom;
 
 use crate::chess::{
     Board, ChessPiece, ChessTeam, Coord, GameEndState, GameState, Move, MoveError, Tile,
@@ -8,9 +8,10 @@ use macroquad::input;
 use macroquad::prelude::*;
 
 use macroquad::ui::{
-    hash, root_ui,
+    hash,
+    root_ui,
     widgets::{self, Group},
-    // Drag, Ui,
+    Skin, // Drag, Ui,
 };
 
 const PIECE_DISPLAY_SIZE: u32 = 80;
@@ -120,8 +121,10 @@ const BOARD_TEXTURES: [&str; 34] = [
 pub fn get_mq_conf() -> Conf {
     Conf {
         window_title: String::from("Chess-rs"),
-        window_width: (PIECE_DISPLAY_SIZE * 8 + BOARD_PADDING * 2
-                        + MOVES_LIST_WIDTH + BOARD_PADDING) as i32,
+        window_width: (PIECE_DISPLAY_SIZE * 8
+            + BOARD_PADDING * 2
+            + MOVES_LIST_WIDTH
+            + BOARD_PADDING) as i32,
         window_height: (PIECE_DISPLAY_SIZE * 8 + BOARD_PADDING * 2) as i32,
         fullscreen: false,
         ..Default::default()
@@ -153,8 +156,14 @@ pub struct GfxState {
     viewed_move: usize,
 
     //promotion
-    is_promotion_ui_shown : bool,
+    is_promotion_ui_shown: bool,
     promotion_move: Move,
+
+    //ui styles
+    skin1: Skin,
+
+    //cache moves as strings
+    moves_str: Vec<String>,
 }
 
 fn get_board_coord(tile: Tile) -> Coord {
@@ -164,7 +173,6 @@ fn get_board_coord(tile: Tile) -> Coord {
 }
 
 impl GfxState {
-
     pub async fn init(game: &mut GameState) -> GfxState {
         let piece_tex_index = 0;
         let board_tex_index = 0;
@@ -177,6 +185,40 @@ impl GfxState {
             y: BOARD_PADDING as f32,
             w: PIECE_DISPLAY_SIZE as f32 * 8.0,
             h: PIECE_DISPLAY_SIZE as f32 * 8.0,
+        };
+
+        let skin1 = {
+            let label_style = root_ui()
+                .style_builder()
+                .font(include_bytes!(
+                    "/usr/share/fonts/TTF/Inconsolata-Expanded.ttf"
+                ))
+                // .text_color(Color::from_rgba(180, 180, 120, 255))
+                .font_size(15)
+                .build();
+
+            let button_style = root_ui()
+                .style_builder()
+                // .background(Image::from_file_with_format(
+                //     include_bytes!("../examples/ui_assets/button_background.png"),
+                //     None,
+                // ))
+                // .background_margin(RectOffset::new(37.0, 37.0, 5.0, 5.0))
+                .margin(RectOffset::new(5.0, 5.0, 5.0, 5.0))
+                .color_hovered(Color::from_rgba(200, 200, 200, 255))
+                .color_selected(Color::from_rgba(200, 200, 200, 255))
+                .font(include_bytes!(
+                    "/usr/share/fonts/TTF/Inconsolata-Expanded.ttf"
+                ))
+                // .text_color(Color::from_rgba(180, 180, 100, 255))
+                .font_size(15)
+                .build();
+
+            Skin {
+                label_style,
+                button_style,
+                ..root_ui().default_skin()
+            }
         };
 
         let board_tex = load_texture(BOARD_TEXTURES[board_tex_index]).await;
@@ -199,7 +241,9 @@ impl GfxState {
             arrows: vec![],
             viewed_move,
             promotion_move: Move::CastleLong,
-            is_promotion_ui_shown: false
+            is_promotion_ui_shown: false,
+            skin1,
+            moves_str: vec![],
         };
 
         state.sync_board(&mut game.get_board());
@@ -208,14 +252,12 @@ impl GfxState {
     }
 
     //display board position at move [move_i]
-    fn show_move(&mut self, game: &GameState, move_i : usize) {
-
+    fn show_move(&mut self, game: &GameState, move_i: usize) {
         assert!(move_i <= game.move_count());
         let board = game.get_board_at(move_i);
         self.viewed_move = move_i;
 
         //updating last move
-
 
         self.sync_board(&board);
 
@@ -294,7 +336,6 @@ impl GfxState {
         }
         //promotion?
         else if piece.piece_type == ChessPiece::Pawn && coord_to.y == finish_line {
-
             the_move = Move::PieceMoveWithPromotion {
                 tile_from,
                 tile_to,
@@ -302,18 +343,18 @@ impl GfxState {
             };
 
             let ep_square = game.en_passant_square;
-            let moves = game.get_board().get_legal_moves_of_piece_in_tile(tile_from, ep_square);
+            let moves = game
+                .get_board()
+                .get_legal_moves_of_piece_in_tile(tile_from, ep_square);
 
             if let Some(moves) = moves {
                 if moves.contains(&coord_to) {
-
                     self.is_promotion_ui_shown = true;
                     self.promotion_move = the_move;
 
                     return Err(MoveError::PromotionPieceNotSpecified);
                 }
             }
-
         }
         //normal move
         else {
@@ -335,26 +376,40 @@ impl GfxState {
 
         let mut pro_p = None;
 
-        widgets::Window::new(hash!(), 
-            vec2(screen_width() / 2.0 - W_W / 2.0, BOARD_PADDING as f32 + 100.0),
-            vec2(W_W, W_H))
-            .movable(false)
-            .titlebar(false)
-            .ui(&mut *root_ui(), |ui| {
-                if ui.button(vec2(0.0, 0.0), "Queen") { pro_p = Some(ChessPiece::Queen); }
-                if ui.button(vec2(0.0, 20.0), "Bishop") { pro_p = Some(ChessPiece::Bishop); }
-                if ui.button(vec2(0.0, 40.0), "Knight") { pro_p = Some(ChessPiece::Knight); }
-                if ui.button(vec2(0.0, 60.0), "Rook") { pro_p = Some(ChessPiece::Rook); }
-            });
+        widgets::Window::new(
+            hash!(),
+            vec2(
+                screen_width() / 2.0 - W_W / 2.0,
+                BOARD_PADDING as f32 + 100.0,
+            ),
+            vec2(W_W, W_H),
+        )
+        .movable(false)
+        .titlebar(false)
+        .ui(&mut *root_ui(), |ui| {
+            if ui.button(vec2(0.0, 0.0), "Queen") {
+                pro_p = Some(ChessPiece::Queen);
+            }
+            if ui.button(vec2(0.0, 20.0), "Bishop") {
+                pro_p = Some(ChessPiece::Bishop);
+            }
+            if ui.button(vec2(0.0, 40.0), "Knight") {
+                pro_p = Some(ChessPiece::Knight);
+            }
+            if ui.button(vec2(0.0, 60.0), "Rook") {
+                pro_p = Some(ChessPiece::Rook);
+            }
+        });
 
         if let Some(p) = pro_p {
             self.is_promotion_ui_shown = false;
 
-            if let Move::PieceMoveWithPromotion{
-                tile_from:_, 
-                tile_to:_, 
-                promotion: ref mut prom_piece 
-            } = self.promotion_move {
+            if let Move::PieceMoveWithPromotion {
+                tile_from: _,
+                tile_to: _,
+                promotion: ref mut prom_piece,
+            } = self.promotion_move
+            {
                 *prom_piece = p;
             }
 
@@ -376,52 +431,65 @@ impl GfxState {
                     game.whose_turn().the_other_one()
                 );
                 // TODO(lucypero): Yeah I panic just to end the program hah
-                panic!("nothing went wrong, it's just that the game ended");
+                // panic!("nothing went wrong, it's just that the game ended");
             }
             GameEndState::Draw => {
                 println!("It's a draw!");
                 // TODO(lucypero): Yeah I panic just to end the program hah
-                panic!("nothing went wrong, it's just that the game ended");
+                // panic!("nothing went wrong, it's just that the game ended");
             }
             GameEndState::Running => {}
         }
     }
 
     fn draw_moves_ui(&mut self, game: &mut GameState) {
+        // TODO(lucypero): cache the moves in chess notation. here u are calculating that for every move, every frame
 
-        const MOVE_NO_W :f32 = 30.;
-        
-        widgets::Window::new(hash!(), vec2(PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
-                           BOARD_PADDING as f32), vec2(MOVES_LIST_WIDTH as f32, 
-                                          PIECE_DISPLAY_SIZE as f32 * 8.))
-            .movable(false)
-            .titlebar(false)
-            .ui(&mut *root_ui(), |ui| {
-                ui.label(None, "Moves");
+        const MOVE_NO_W: f32 = 30.;
 
-                // 0 -- 0
-                // 1 -- 1
-                // 2 -- 1
-                // 3 -- 2
-                // 4 -- 2
-                // 5 -- 3
-                let group_count = (game.move_count() + 1) / 2;
-                let move_count = game.move_count();
+        root_ui().push_skin(&self.skin1);
+        widgets::Window::new(
+            hash!(),
+            vec2(
+                PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
+                BOARD_PADDING as f32,
+            ),
+            vec2(MOVES_LIST_WIDTH as f32, PIECE_DISPLAY_SIZE as f32 * 8.),
+        )
+        .movable(false)
+        .titlebar(false)
+        .ui(&mut *root_ui(), |ui| {
+            ui.label(None, "Moves");
 
-                for i in 1..=group_count {
-                    Group::new(hash!("moves", i), vec2(MOVES_LIST_WIDTH as f32, 30.)).ui( ui, |ui| {
+            let group_count = (game.move_count() + 1) / 2;
+            let move_count = game.move_count();
+
+            for i in 1..=group_count {
+                Group::new(hash!("moves", i), vec2(MOVES_LIST_WIDTH as f32, 30.))
+                    .highlight(false)
+                    .ui(ui, |ui| {
                         ui.label(None, &format!("{}", i));
 
                         for j in 0..=1 {
-                            let move_i = (i as i32 *2 + (j as i32 - 1)) as usize - 1;
-                            if move_count > move_i && ui.button(Vec2::new(MOVE_NO_W + j as f32 * ((MOVES_LIST_WIDTH as f32 - MOVE_NO_W) / 2.), 0.), &game.get_move_in_chess_notation(move_i)) {
+                            let move_i = (i as i32 * 2 + (j as i32 - 1)) as usize - 1;
+                            if move_count > move_i
+                                && ui.button(
+                                    Vec2::new(
+                                        MOVE_NO_W
+                                            + j as f32
+                                                * ((MOVES_LIST_WIDTH as f32 - MOVE_NO_W) / 2.),
+                                        0.,
+                                    ),
+                                    self.moves_str[move_i].as_str(),
+                                )
+                            {
                                 self.show_move(game, move_i + 1);
                             }
                         }
                     });
-                }
-            });
-
+            }
+        });
+        root_ui().pop_skin();
     }
 
     fn draw_legal_move_tiles_at(&self, coords: &Vec<Coord>) {
@@ -550,25 +618,34 @@ impl GfxState {
             draw_rectangle(col_to.x, col_to.y, col_to.w, col_to.h, LAST_MOVE_COLOR);
         }
 
-        // if you click and you are watching a previous move, jump to last move
+        // if you click the board and you are watching a previous move, jump to last move
         if input::is_mouse_button_down(MouseButton::Left) && self.viewed_move != game.move_count() {
-            self.show_move(game, game.move_count());
+            let mouse_vec = input::mouse_position();
+
+            let mouse_vec = Vec2 {
+                x: mouse_vec.0,
+                y: mouse_vec.1,
+            };
+
+            if self.board_col.is_in_box(mouse_vec) {
+                self.show_move(game, game.move_count());
+            }
         }
 
         // cycle move display with arrow_left and arrow_right
-        if input::is_key_pressed(KeyCode::Left) { 
-            self.show_move(game, cmp::max(0,self.viewed_move as i32 - 1) as usize);
+        if input::is_key_pressed(KeyCode::Left) {
+            self.show_move(game, cmp::max(0, self.viewed_move as i32 - 1) as usize);
         }
 
-        if input::is_key_pressed(KeyCode::Right) { 
-            self.show_move(game, cmp::min(game.move_count(),self.viewed_move + 1));
+        if input::is_key_pressed(KeyCode::Right) {
+            self.show_move(game, cmp::min(game.move_count(), self.viewed_move + 1));
         }
 
-        if input::is_key_pressed(KeyCode::Down) { 
+        if input::is_key_pressed(KeyCode::Down) {
             self.show_move(game, game.move_count());
         }
 
-        if input::is_key_pressed(KeyCode::Up) { 
+        if input::is_key_pressed(KeyCode::Up) {
             self.show_move(game, 0);
         }
 
@@ -594,6 +671,8 @@ impl GfxState {
 
                 if res.is_ok() {
                     self.viewed_move = game.move_count();
+                    self.moves_str
+                        .push(game.get_move_in_chess_notation(self.viewed_move - 1));
                     self.handle_end_state(game);
                 }
             }
@@ -601,7 +680,10 @@ impl GfxState {
             self.sync_board(&game.get_board());
         }
 
-        if input::is_mouse_button_pressed(MouseButton::Left) && !self.is_dragged && self.viewed_move == game.move_count() {
+        if input::is_mouse_button_pressed(MouseButton::Left)
+            && !self.is_dragged
+            && self.viewed_move == game.move_count()
+        {
             // println!("mouse click! at {:?}", input::mouse_position());
             //check if u clicked the box
             let mouse_vec = input::mouse_position();
@@ -950,13 +1032,9 @@ impl Piece {
     }
 
     fn draw(&self, atlas_tex: &Texture2D) {
-
         let params;
 
-
-
         if atlas_tex.width() == 1536. && atlas_tex.height() == 512. {
-
             let atlas_pos_x = match self.piece_type {
                 ChessPiece::Pawn => 5,
                 ChessPiece::Rook => 0,
@@ -968,7 +1046,7 @@ impl Piece {
 
             let atlas_pos_y = match self.team {
                 ChessTeam::Black => 0,
-                ChessTeam::White => 1
+                ChessTeam::White => 1,
             };
 
             params = DrawTextureParams {
@@ -988,7 +1066,6 @@ impl Piece {
                 pivot: None,
             };
         } else if atlas_tex.width() == 768. && atlas_tex.height() == 256. {
-
             let atlas_pos_x = match self.piece_type {
                 ChessPiece::Pawn => 5,
                 ChessPiece::Rook => 0,
@@ -1000,7 +1077,7 @@ impl Piece {
 
             let atlas_pos_y = match self.team {
                 ChessTeam::Black => 0,
-                ChessTeam::White => 1
+                ChessTeam::White => 1,
             };
 
             params = DrawTextureParams {
@@ -1019,9 +1096,7 @@ impl Piece {
                 flip_y: false,
                 pivot: None,
             };
-
         } else {
-
             let mut atlas_pos_x = match self.piece_type {
                 ChessPiece::Pawn => 3,
                 ChessPiece::Rook => 5,

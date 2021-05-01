@@ -231,10 +231,10 @@ fn parse_captures(input: &[char], i: &mut usize) -> Result<Node, ()> {
 }
 
 fn parse_en_passant(input: &[char], i: &mut usize) -> Result<Node, ()> {
-    if safe_index(input, *i + 3).is_ok() && 
-        input[*i..=*i + 3].iter().collect::<String>() == "e.p." {
-            *i += 4;
-            return Ok(Node::EnPassant);
+    if safe_index(input, *i + 3).is_ok() && input[*i..=*i + 3].iter().collect::<String>() == "e.p."
+    {
+        *i += 4;
+        return Ok(Node::EnPassant);
     }
 
     Err(())
