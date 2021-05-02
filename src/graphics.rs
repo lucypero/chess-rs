@@ -550,6 +550,10 @@ impl GfxState {
 
         clear_background(BACKGROUND_COLOR);
 
+        if input::is_key_pressed(KeyCode::F) {
+            println!("fen output: {}", game.get_fen());
+        }
+
         self.draw_board();
 
         //draw tiles of last move

@@ -1007,6 +1007,104 @@ impl GameState {
     pub fn whose_turn(&mut self) -> ChessTeam {
         self.get_board().whose_turn
     }
+
+    pub fn get_fen(&mut self) -> String {
+
+        let mut res = String::new();
+        
+        let board = self.get_board();
+
+        //rank (0 to 7)
+        for r in (0..=7).rev() {
+            //file (7 to 0)
+            let mut empty_tiles = 0;
+            for f in 0..=7 {
+                let coord = Coord{x:f, y:r};
+                let tile = Tile::try_from(coord).unwrap();
+                if let Some(tp) = board.get_piece(tile) {
+                    if empty_tiles > 0 {
+                        //append the number
+                        res.push(std::char::from_digit(empty_tiles, 10).unwrap());
+                    }
+                    let p_c = match tp {
+                        TeamedChessPiece(ChessTeam::Black, ChessPiece::Pawn) => 'p',
+                        TeamedChessPiece(ChessTeam::Black, ChessPiece::Rook) => 'r',
+                        TeamedChessPiece(ChessTeam::Black, ChessPiece::Knight) => 'n',
+                        TeamedChessPiece(ChessTeam::Black, ChessPiece::Bishop) => 'b',
+                        TeamedChessPiece(ChessTeam::Black, ChessPiece::Queen) => 'q',
+                        TeamedChessPiece(ChessTeam::Black, ChessPiece::King) => 'k',
+
+                        TeamedChessPiece(ChessTeam::White, ChessPiece::Pawn) => 'P',
+                        TeamedChessPiece(ChessTeam::White, ChessPiece::Rook) => 'R',
+                        TeamedChessPiece(ChessTeam::White, ChessPiece::Knight) => 'N',
+                        TeamedChessPiece(ChessTeam::White, ChessPiece::Bishop) => 'B',
+                        TeamedChessPiece(ChessTeam::White, ChessPiece::Queen) => 'Q',
+                        TeamedChessPiece(ChessTeam::White, ChessPiece::King) => 'K',
+                    };
+
+                    res.push(p_c);
+                    empty_tiles = 0;
+                } else {
+                    empty_tiles+=1;
+                }
+            }
+
+            if empty_tiles > 0 {
+                //append the number
+                res.push(std::char::from_digit(empty_tiles, 10).unwrap());
+            }
+
+            if r != 0 {
+                res.push('/');
+            }
+
+            // append '/'
+        }
+
+        // whose turn
+        res.push(' ');
+        res.push(match board.whose_turn {
+            ChessTeam::Black => 'b',
+            ChessTeam::White => 'w'
+        });
+
+        //castling
+        res.push(' ');
+        if board.castling_rights.0 {
+            res.push('K');
+        }
+        if board.castling_rights.1 {
+            res.push('Q');
+        }
+        if board.castling_rights.2 {
+            res.push('k');
+        }
+        if board.castling_rights.3 {
+            res.push('q');
+        }
+        if board.castling_rights == (false,false,false,false) {
+            res.push('-');
+        }
+
+        //ep square
+        res.push(' ');
+        if let Some(tile) = self.en_passant_square {
+            res += &format!("{}", tile);
+        } else {
+            res.push('-');
+        }
+
+        //fifty move counter
+        res.push(' ');
+        res += &self.fifty_move_counter.to_string();
+
+        //full moves counter
+        // TODO(lucypero): add moves done in the game!!
+        res.push(' ');
+        res += &self.starting_move_count.to_string();
+
+        res
+    }
 }
 
 // fn capitalize_coord_str(str: String) -> String {
@@ -1591,7 +1689,7 @@ pub fn is_piece_move_legal(
 pub struct Board {
     pub whose_turn: ChessTeam,
     pub piece_locations: HashMap<Tile, TeamedChessPiece>,
-    castling_rights: (bool, bool, bool, bool), // (white short castle, white long castle, black short castle, black long castle)
+    pub castling_rights: (bool, bool, bool, bool), // (white short castle, white long castle, black short castle, black long castle)
 }
 
 impl Board {
