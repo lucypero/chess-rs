@@ -549,7 +549,7 @@ impl GameState {
             starting_board: Board::start_position(),
             cached_current_board: None,
             fifty_move_counter: 0,
-            starting_move_count: 0,
+            starting_move_count: 1,
             en_passant_square: None,
         }
     }
@@ -559,7 +559,7 @@ impl GameState {
             moves: vec![],
             starting_board: board,
             cached_current_board: None,
-            starting_move_count: 0,
+            starting_move_count: 1,
             en_passant_square: None,
             fifty_move_counter: 0,
         }
@@ -864,6 +864,25 @@ impl GameState {
         Ok(())
     }
 
+    fn get_full_move_count(&self) -> u32 {
+
+        // basically we have to figure out how many times 
+        //    black moved and add it to self.starting_move_count
+
+        // answer : if white starts first, number of black moves is moves / 2 (round down)
+        //          if black starts first, number of black moves is moves / 2 (round up)
+
+        let starting_team = self.starting_board.whose_turn;
+        let move_count = self.move_count() as u32;
+
+        let added_moves = match starting_team {
+            ChessTeam::Black => (move_count + 1) / 2,
+            ChessTeam::White => move_count / 2
+        };
+
+        self.starting_move_count + added_moves
+    }
+
     pub fn get_move_in_chess_notation(&mut self, move_i: usize) -> String {
         let mut final_move_str = String::new();
 
@@ -1100,8 +1119,13 @@ impl GameState {
 
         //full moves counter
         // TODO(lucypero): add moves done in the game!!
+
+
+        // The number of the full move. It starts at 1, and is incremented after Black's move.
+
+
         res.push(' ');
-        res += &self.starting_move_count.to_string();
+        res += &self.get_full_move_count().to_string();
 
         res
     }
