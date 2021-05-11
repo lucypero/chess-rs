@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 use crate::chess::{
     Board, ChessPiece, ChessTeam, Coord, GameEndState, GameState, Move, MoveError, Tile,
 };
+use egui::CtxRef;
 use macroquad::input;
 use macroquad::prelude::*;
 
@@ -215,8 +216,8 @@ impl GfxState {
             }
         };
 
-        let board_tex = load_texture(BOARD_TEXTURES[board_tex_index]).await;
-        let pieces_tex = load_texture(PIECE_TEXTURES[piece_tex_index]).await;
+        let board_tex = load_texture(BOARD_TEXTURES[board_tex_index]).await.unwrap();
+        let pieces_tex = load_texture(PIECE_TEXTURES[piece_tex_index]).await.unwrap();
 
         let viewed_move = cmp::max(0 as usize, game.move_count()) as usize;
 
@@ -436,9 +437,54 @@ impl GfxState {
         }
     }
 
-    fn draw_moves_ui(&mut self, game: &mut GameState) {
-        // TODO(lucypero): cache the moves in chess notation. here u are calculating that for every move, every frame
+    fn draw_moves_ui(&mut self, game: &mut GameState, egui_ctx: &CtxRef) {
 
+        // TODO(lucypero): this is crashing the game when you promote a pawn..
+
+        const MOVE_NO_W: f32 = 30.;
+
+        let group_count = (game.move_count() + 1) / 2;
+        let move_count = game.move_count();
+
+        egui::Window::new("Moves")
+            // .anchor(egui::Align2::LEFT_TOP, 
+            //     egui::vec2(
+            //         PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
+            //         BOARD_PADDING as f32,
+            //     ))
+            // .fixed_size(egui::vec2(MOVES_LIST_WIDTH as f32 + 2000.,
+            //         PIECE_DISPLAY_SIZE as f32 * 8.))
+            .fixed_pos(egui::pos2(PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
+                    BOARD_PADDING as f32))
+            .resizable(false)
+            .title_bar(false)
+            .show(egui_ctx, |ui| {
+
+                ui.set_min_size(egui::vec2(MOVES_LIST_WIDTH as f32,
+                                    PIECE_DISPLAY_SIZE as f32 * 8.));
+
+                egui::Grid::new("my_grid")
+                    .striped(true)
+                    // .min_col_width(self.min_col_width)
+                    // .max_col_width(self.max_col_width)
+                    .show(ui, |ui| {
+
+                        for i in 1..=group_count {
+                            ui.label(&format!("{}", i));
+                            for j in 0..=1 {
+                                let move_i = (i as i32 * 2 + (j as i32 - 1)) as usize - 1;
+                                if move_count > move_i &&
+                                    ui.add(egui::Button::new(self.moves_str[move_i].as_str())).clicked() {
+                                        self.show_move(game, move_i + 1);
+                                }
+                            }
+                            ui.end_row();
+                        }
+                    });
+            });
+    }
+
+    fn draw_moves_ui_old(&mut self, game: &mut GameState) {
         const MOVE_NO_W: f32 = 30.;
 
         root_ui().push_skin(&self.skin1);
@@ -508,7 +554,7 @@ impl GfxState {
                 self.board_tex_index = 0;
             }
 
-            self.board_tex = load_texture(BOARD_TEXTURES[self.board_tex_index]).await;
+            self.board_tex = load_texture(BOARD_TEXTURES[self.board_tex_index]).await.unwrap();
 
             println!("board tex: {}", BOARD_TEXTURES[self.board_tex_index]);
         }
@@ -519,17 +565,17 @@ impl GfxState {
                 self.piece_tex_index = 0;
             }
 
-            self.pieces_tex = load_texture(PIECE_TEXTURES[self.piece_tex_index]).await;
+            self.pieces_tex = load_texture(PIECE_TEXTURES[self.piece_tex_index]).await.unwrap();
             println!("piece tex: {}", PIECE_TEXTURES[self.piece_tex_index]);
         }
     }
 
     fn draw_board(&self) {
         let board_params = DrawTextureParams {
-            dest_size: Some(Vec2 {
-                x: self.board_col.w,
-                y: self.board_col.h,
-            }),
+            dest_size: Some(vec2 (
+                               self.board_col.w,
+                               self.board_col.h
+                       )),
             source: None,
             rotation: 0.0,
             flip_x: false,
@@ -553,6 +599,10 @@ impl GfxState {
         if input::is_key_pressed(KeyCode::F) {
             println!("fen output: {}", game.get_fen());
         }
+
+        egui_macroquad::ui(|egui_ctx| {
+            self.draw_moves_ui(game, egui_ctx);
+        });
 
         self.draw_board();
 
@@ -619,11 +669,7 @@ impl GfxState {
         // if you click the board and you are watching a previous move, jump to last move
         if input::is_mouse_button_down(MouseButton::Left) && self.viewed_move != game.move_count() {
             let mouse_vec = input::mouse_position();
-
-            let mouse_vec = Vec2 {
-                x: mouse_vec.0,
-                y: mouse_vec.1,
-            };
+            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
 
             if self.board_col.is_in_box(mouse_vec) {
                 self.show_move(game, game.move_count());
@@ -652,10 +698,7 @@ impl GfxState {
             self.is_dragged = false;
 
             let mouse_vec = input::mouse_position();
-            let mouse_vec = Vec2 {
-                x: mouse_vec.0,
-                y: mouse_vec.1,
-            };
+            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
             if self.board_col.is_in_box(mouse_vec) {
                 //get tile where the mouse was in
                 let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
@@ -685,11 +728,7 @@ impl GfxState {
             // println!("mouse click! at {:?}", input::mouse_position());
             //check if u clicked the box
             let mouse_vec = input::mouse_position();
-
-            let mouse_vec = Vec2 {
-                x: mouse_vec.0,
-                y: mouse_vec.1,
-            };
+            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
 
             for (i, piece) in self.pieces.iter().enumerate() {
                 if piece.col.is_in_box(mouse_vec) {
@@ -727,19 +766,16 @@ impl GfxState {
 
         if self.is_dragged {
             let mouse_vec = input::mouse_position();
+            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
 
             let mut pi = &mut self.pieces[self.dragged_piece_i];
 
-            pi.col.x = mouse_vec.0 - pi.col.w / 2.0;
-            pi.col.y = mouse_vec.1 - pi.col.h / 2.0;
+            pi.col.x = mouse_vec.x - pi.col.w / 2.0;
+            pi.col.y = mouse_vec.y - pi.col.h / 2.0;
 
             self.draw_legal_move_tiles_at(&self.dragged_legal_moves);
 
             //frame the tile on hover
-            let mouse_vec = Vec2 {
-                x: mouse_vec.0,
-                y: mouse_vec.1,
-            };
             if self.board_col.is_in_box(mouse_vec) {
                 //get tile where the mouse was in
                 let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
@@ -767,10 +803,7 @@ impl GfxState {
         //handle arrow input
         if input::is_mouse_button_pressed(MouseButton::Right) && !self.is_dragged {
             let mouse_vec = input::mouse_position();
-            let mouse_vec = Vec2 {
-                x: mouse_vec.0,
-                y: mouse_vec.1,
-            };
+            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
             if self.board_col.is_in_box(mouse_vec) {
                 //get tile where the mouse was in
                 let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
@@ -798,10 +831,7 @@ impl GfxState {
 
         if input::is_mouse_button_released(MouseButton::Right) {
             let mouse_vec = input::mouse_position();
-            let mouse_vec = Vec2 {
-                x: mouse_vec.0,
-                y: mouse_vec.1,
-            };
+            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
             if self.board_col.is_in_box(mouse_vec) {
                 //get tile where the mouse was in
                 let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
@@ -843,28 +873,28 @@ impl GfxState {
                     // y goes top bottom
                     if coord_to.x > coord_from.x && coord_to.y > coord_from.y {
                         // arrow -> top right
-                        t_offset = Vec2 { x: -1.0, y: 0.0 }.normalize();
+                        t_offset = vec2(-1.0,0.0).normalize();
                     } else if coord_to.x > coord_from.x && coord_to.y < coord_from.y {
                         // arrow -> bottom right
-                        t_offset = Vec2 { x: 0.0, y: -1.0 }.normalize();
+                        t_offset = vec2(0.0,-1.0).normalize();
                     } else if coord_to.x > coord_from.x && coord_to.y == coord_to.y {
                         // arrow -> right
-                        t_offset = Vec2 { x: -1.0, y: -1.0 }.normalize();
+                        t_offset = vec2(-1.0,-1.0).normalize();
                     } else if coord_to.x < coord_from.x && coord_to.y > coord_from.y {
                         // arrow -> top left
-                        t_offset = Vec2 { x: 0.0, y: 1.0 }.normalize();
+                        t_offset = vec2(0.0,1.0).normalize();
                     } else if coord_to.x < coord_from.x && coord_to.y < coord_from.y {
                         // arrow -> bottom left
-                        t_offset = Vec2 { x: 1.0, y: 0.0 }.normalize();
+                        t_offset = vec2(1.0,0.0).normalize();
                     } else if coord_to.x == coord_from.x && coord_to.y > coord_from.y {
                         // arrow -> up
-                        t_offset = Vec2 { x: -1.0, y: 1.0 }.normalize();
+                        t_offset = vec2(-1.0,1.0).normalize();
                     } else if coord_to.x == coord_from.x && coord_to.y < coord_from.y {
                         // arrow -> down
-                        t_offset = Vec2 { x: 1.0, y: -1.0 }.normalize();
+                        t_offset = vec2(1.0,-1.0).normalize();
                     } else {
                         //arrow -> left
-                        t_offset = Vec2 { x: 1.0, y: 1.0 }.normalize();
+                        t_offset = vec2(1.0,1.0).normalize();
                     }
 
                     let tile_w = self.board_col.w / 8.0;
@@ -874,89 +904,89 @@ impl GfxState {
                     // y:self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32 + t,
                     // if it is a diagonal to the top right
                     draw_triangle(
-                        Vec2 {
-                            x: self.board_col.x
+                        vec2(
+                            self.board_col.x
                                 + tile_w / 2.0
                                 + tile_w * coord_from.x as f32
                                 + t_offset.x * t,
-                            y: self.board_col.y
+                            self.board_col.y
                                 + tile_w / 2.0
                                 + tile_w * (7 - coord_from.y) as f32
-                                + t_offset.y * t,
-                        },
-                        Vec2 {
-                            x: self.board_col.x
+                                + t_offset.y * t
+                        ),
+                        vec2(
+                            self.board_col.x
                                 + tile_w / 2.0
                                 + tile_w * coord_to.x as f32
                                 + t_offset.x * t,
-                            y: self.board_col.y
+                            self.board_col.y
                                 + tile_w / 2.0
                                 + tile_w * (7 - coord_to.y) as f32
-                                + t_offset.y * t,
-                        },
-                        Vec2 {
-                            x: self.board_col.x
+                                + t_offset.y * t
+                        ),
+                        vec2(
+                            self.board_col.x
                                 + tile_w / 2.0
                                 + tile_w * coord_to.x as f32
                                 + t_offset.y * t,
-                            y: self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                                - t_offset.x * t,
-                        },
+                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                                - t_offset.x * t
+                        ),
                         HIGHLIGHT_COLOR,
                     );
                     draw_triangle(
-                        Vec2 {
-                            x: self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_from.x as f32
-                                + t_offset.x * t,
-                            y: self.board_col.y
-                                + tile_w / 2.0
-                                + tile_w * (7 - coord_from.y) as f32
-                                + t_offset.y * t,
-                        },
-                        Vec2 {
-                            x: self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_from.x as f32
-                                + t_offset.y * t,
-                            y: self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32
-                                - t_offset.x * t,
-                        },
-                        Vec2 {
-                            x: self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_to.x as f32
-                                + t_offset.y * t,
-                            y: self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                                - t_offset.x * t,
-                        },
+                        vec2 (
+                            self.board_col.x
+                            + tile_w / 2.0
+                            + tile_w * coord_from.x as f32
+                            + t_offset.x * t,
+                            self.board_col.y
+                            + tile_w / 2.0
+                            + tile_w * (7 - coord_from.y) as f32
+                            + t_offset.y * t
+                        ),
+                        vec2 (
+                            self.board_col.x
+                            + tile_w / 2.0
+                            + tile_w * coord_from.x as f32
+                            + t_offset.y * t,
+                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32
+                            - t_offset.x * t
+                        ),
+                        vec2 (
+                            self.board_col.x
+                            + tile_w / 2.0
+                            + tile_w * coord_to.x as f32
+                            + t_offset.y * t,
+                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                            - t_offset.x * t
+                        ),
                         HIGHLIGHT_COLOR,
                     );
                     // the tip
                     draw_triangle(
-                        Vec2 {
-                            x: self.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32,
-                            y: self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32,
-                        },
-                        Vec2 {
-                            x: self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_to.x as f32
-                                + t_offset.x * t,
-                            y: self.board_col.y
-                                + tile_w / 2.0
-                                + tile_w * (7 - coord_to.y) as f32
-                                + t_offset.y * t,
-                        },
-                        Vec2 {
-                            x: self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_to.x as f32
-                                + t_offset.y * t,
-                            y: self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                                - t_offset.x * t,
-                        },
+                        vec2 (
+                            self.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32,
+                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                        ),
+                        vec2 (
+                            self.board_col.x
+                            + tile_w / 2.0
+                            + tile_w * coord_to.x as f32
+                            + t_offset.x * t,
+                            self.board_col.y
+                            + tile_w / 2.0
+                            + tile_w * (7 - coord_to.y) as f32
+                            + t_offset.y * t
+                        ),
+                        vec2 (
+                            self.board_col.x
+                            + tile_w / 2.0
+                            + tile_w * coord_to.x as f32
+                            + t_offset.y * t,
+                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                            - t_offset.x * t
+                        ),
                         HIGHLIGHT_COLOR,
                     );
                 }
@@ -973,12 +1003,14 @@ impl GfxState {
         }
 
         //draw moves ui
-        self.draw_moves_ui(game);
+        // self.draw_moves_ui(game);
 
         //test draw promoting ui
         if self.is_promotion_ui_shown {
             self.draw_promotion(game);
         }
+
+        egui_macroquad::draw();
     }
 }
 
@@ -1048,10 +1080,10 @@ impl Piece {
             };
 
             params = DrawTextureParams {
-                dest_size: Some(Vec2 {
-                    x: self.col.w,
-                    y: self.col.h,
-                }),
+                dest_size: Some(vec2 (
+                                   self.col.w,
+                                   self.col.h
+                           )),
                 source: Some(Rect {
                     x: 256.0 * atlas_pos_x as f32,
                     y: 256.0 * atlas_pos_y as f32,
@@ -1079,10 +1111,10 @@ impl Piece {
             };
 
             params = DrawTextureParams {
-                dest_size: Some(Vec2 {
-                    x: self.col.w,
-                    y: self.col.h,
-                }),
+                dest_size: Some(vec2 (
+                                   self.col.w,
+                                   self.col.h
+                           )),
                 source: Some(Rect {
                     x: 128.0 * atlas_pos_x as f32,
                     y: 128.0 * atlas_pos_y as f32,
@@ -1109,10 +1141,10 @@ impl Piece {
             }
 
             params = DrawTextureParams {
-                dest_size: Some(Vec2 {
-                    x: self.col.w,
-                    y: self.col.h,
-                }),
+                dest_size: Some(vec2 (
+                                   self.col.w,
+                                   self.col.h
+                           )),
                 source: Some(Rect {
                     x: 150.0 * atlas_pos_x as f32,
                     y: 0.0,
