@@ -5,15 +5,13 @@ mod chess;
 mod graphics;
 mod move_parser;
 
-use chess::GameState;
-
 fn get_mq_conf() -> macroquad::prelude::Conf {
     graphics::get_mq_conf()
 }
 
 struct Args {
-    test: Option<GameState>,
-    fen: Option<GameState>,
+    test: Option<chess::GameState>,
+    fen: Option<chess::GameState>,
 }
 
 fn parse_args(args: Vec<String>) -> Args {
@@ -62,29 +60,69 @@ fn parse_args(args: Vec<String>) -> Args {
     args_p
 }
 
+pub enum MainMenuState {
+    Main,
+    PlayMenu,
+    OptionsMenu
+}
+
+pub enum GameState {
+    MainMenu(MainMenuState),
+    InGame(chess::GameState, graphics::GfxState)
+}
+
+impl GameState {
+    //called every time game state is switched
+    fn init_mm() -> GameState {
+        GameState::MainMenu(MainMenuState::Main)
+    }
+
+    async fn swap_to_in_game(&mut self, mut game : chess::GameState) {
+
+        let gfx_state = graphics::GfxState::init(&mut game).await;
+        *self = GameState::InGame(game, gfx_state);
+    }
+}
+
 #[macroquad::main(get_mq_conf)]
 async fn main() {
     // test scenarios
-    let args: Vec<String> = std::env::args().collect();
-    let args = parse_args(args);
+    // let args: Vec<String> = std::env::args().collect();
+    // let args = parse_args(args);
 
     //initializing game state
-    let mut game = if let Some(fen_game) = args.fen {
-        fen_game
-    } else if let Some(test_game) = args.test {
-        test_game
-    } else {
-        GameState::init()
-    };
+    // let mut game = if let Some(fen_game) = args.fen {
+    //     fen_game
+    // } else if let Some(test_game) = args.test {
+    //     test_game
+    // } else {
+    //     chess::GameState::init()
+    // };
 
-    let mut gfx_state = graphics::GfxState::init(&mut game).await;
+    let mut game_state = GameState::init_mm();
 
     loop {
-        game_loop(&mut game, &mut gfx_state).await;
+        // game_loop(&mut game, &mut gfx_state).await;
+        game_loop(&mut game_state).await;
         macroquad::prelude::next_frame().await
     }
 }
 
-async fn game_loop(game: &mut GameState, gfx_state: &mut graphics::GfxState) {
-    gfx_state.draw(game).await
+// async fn game_loop(game: &mut GameState, gfx_state: &mut graphics::GfxState) {
+async fn game_loop(game_state : &mut GameState) {
+
+    let mut game = None;
+
+    match game_state {
+        GameState::MainMenu(mm_s) => {
+            game = graphics::draw_main_menu(mm_s).await;
+        }
+        GameState::InGame(game, gfx_state) => {
+            gfx_state.draw(game).await
+        }
+    }
+
+    if let Some(game) = game {
+        game_state.swap_to_in_game(game).await;
+    }
 }

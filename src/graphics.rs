@@ -2,7 +2,7 @@ use std::cmp;
 use std::convert::TryFrom;
 
 use crate::chess::{
-    Board, ChessPiece, ChessTeam, Coord, GameEndState, GameState, Move, MoveError, Tile,
+    Board, ChessPiece, ChessTeam, Coord, GameEndState, GameState, Move, MoveError, Tile, self
 };
 use egui::CtxRef;
 use macroquad::input;
@@ -14,6 +14,8 @@ use macroquad::ui::{
     widgets::{self, Group},
     Skin, // Drag, Ui,
 };
+
+use crate::MainMenuState;
 
 const PIECE_DISPLAY_SIZE: u32 = 80;
 const BOARD_PADDING: u32 = 30;
@@ -1160,4 +1162,54 @@ impl Piece {
 
         draw_texture_ex(*atlas_tex, self.col.x, self.col.y, WHITE, params);
     }
+}
+
+pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> Option<GameState>{
+
+    let mut play_button_clicked = false;
+    let mut play_fen_clicked = false;
+
+    // TODO(lucypero): this has to be persistent!!!
+    let mut fen_string = String::new();
+
+    egui_macroquad::ui(|egui_ctx| {
+        match mm_state {
+            MainMenuState::Main => {
+                egui::Window::new("Main Menu!")
+                    .show(egui_ctx, |ui| {
+                        if ui.add(egui::Button::new("Play against yourself")).clicked() {
+                            *mm_state = MainMenuState::PlayMenu;
+                        }
+                    });
+            }
+            MainMenuState::PlayMenu => {
+                egui::Window::new("Play")
+                    .show(egui_ctx, |ui| {
+                        if ui.add(egui::Button::new("Play normal game")).clicked() {
+                            play_button_clicked = true;
+                        }
+                        ui.add(egui::TextEdit::singleline(&mut fen_string));
+                        if ui.add(egui::Button::new("Play from FEN position")).clicked() {
+                            play_fen_clicked = true;
+                        }
+                    });
+            }
+            MainMenuState::OptionsMenu => {
+
+            }
+        }
+    });
+
+    egui_macroquad::draw();
+
+    if play_button_clicked {
+        return Some(GameState::init())
+    } else if play_fen_clicked {
+        let game = chess::parse_fen(fen_string);
+        if let Some(game) = game {
+            return Some(game);
+        }
+    }
+
+    None
 }
