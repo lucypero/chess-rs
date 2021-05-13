@@ -17,6 +17,8 @@ use macroquad::ui::{
 
 use crate::MainMenuState;
 
+// use crate::GameState as ProgramState;
+
 const PIECE_DISPLAY_SIZE: u32 = 80;
 const BOARD_PADDING: u32 = 30;
 const MOVES_LIST_WIDTH: u32 = 200;
@@ -593,13 +595,19 @@ impl GfxState {
         );
     }
 
-    pub async fn draw(&mut self, game: &mut GameState) {
+    pub async fn draw(&mut self, game: &mut GameState) -> bool {
         // self.keys_swap_textures().await;
+
+        let mut res = false;
 
         clear_background(BACKGROUND_COLOR);
 
         if input::is_key_pressed(KeyCode::F) {
             println!("fen output: {}", game.get_fen());
+        }
+        
+        if input::is_key_pressed(KeyCode::Backspace) {
+            res = true;
         }
 
         egui_macroquad::ui(|egui_ctx| {
@@ -1012,7 +1020,10 @@ impl GfxState {
             self.draw_promotion(game);
         }
 
+        // println!("{}", macroquad::time::get_fps());
+
         egui_macroquad::draw();
+        res
     }
 }
 
@@ -1164,13 +1175,12 @@ impl Piece {
     }
 }
 
-pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> Option<GameState>{
+pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> Option<GameState> {
 
     let mut play_button_clicked = false;
     let mut play_fen_clicked = false;
 
-    // TODO(lucypero): this has to be persistent!!!
-    let mut fen_string = String::new();
+    clear_background(BACKGROUND_COLOR);
 
     egui_macroquad::ui(|egui_ctx| {
         match mm_state {
@@ -1178,17 +1188,17 @@ pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> Option<GameState>{
                 egui::Window::new("Main Menu!")
                     .show(egui_ctx, |ui| {
                         if ui.add(egui::Button::new("Play against yourself")).clicked() {
-                            *mm_state = MainMenuState::PlayMenu;
+                            *mm_state = MainMenuState::PlayMenu{fen_string: String::new()};
                         }
                     });
             }
-            MainMenuState::PlayMenu => {
+            MainMenuState::PlayMenu{fen_string} => {
                 egui::Window::new("Play")
                     .show(egui_ctx, |ui| {
                         if ui.add(egui::Button::new("Play normal game")).clicked() {
                             play_button_clicked = true;
                         }
-                        ui.add(egui::TextEdit::singleline(&mut fen_string));
+                        ui.add(egui::TextEdit::singleline(fen_string));
                         if ui.add(egui::Button::new("Play from FEN position")).clicked() {
                             play_fen_clicked = true;
                         }
@@ -1205,9 +1215,12 @@ pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> Option<GameState>{
     if play_button_clicked {
         return Some(GameState::init())
     } else if play_fen_clicked {
-        let game = chess::parse_fen(fen_string);
-        if let Some(game) = game {
-            return Some(game);
+
+        if let MainMenuState::PlayMenu{fen_string} = mm_state {
+            let game = chess::parse_fen(fen_string.to_string());
+            if let Some(game) = game {
+                return Some(game);
+            }
         }
     }
 

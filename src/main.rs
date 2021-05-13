@@ -62,7 +62,7 @@ fn parse_args(args: Vec<String>) -> Args {
 
 pub enum MainMenuState {
     Main,
-    PlayMenu,
+    PlayMenu{ fen_string: String },
     OptionsMenu
 }
 
@@ -81,6 +81,10 @@ impl GameState {
 
         let gfx_state = graphics::GfxState::init(&mut game).await;
         *self = GameState::InGame(game, gfx_state);
+    }
+
+    fn swap_to_mm(&mut self) {
+        *self = GameState::MainMenu(MainMenuState::Main);
     }
 }
 
@@ -111,18 +115,19 @@ async fn main() {
 // async fn game_loop(game: &mut GameState, gfx_state: &mut graphics::GfxState) {
 async fn game_loop(game_state : &mut GameState) {
 
-    let mut game = None;
-
     match game_state {
         GameState::MainMenu(mm_s) => {
-            game = graphics::draw_main_menu(mm_s).await;
+            let game = graphics::draw_main_menu(mm_s).await;
+            if let Some(game) = game {
+                game_state.swap_to_in_game(game).await;
+            }
         }
         GameState::InGame(game, gfx_state) => {
-            gfx_state.draw(game).await
+            let go_back = gfx_state.draw(game).await;
+            if go_back {
+                game_state.swap_to_mm();
+            }
         }
     }
 
-    if let Some(game) = game {
-        game_state.swap_to_in_game(game).await;
-    }
 }
