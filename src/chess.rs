@@ -1117,13 +1117,7 @@ impl GameState {
         res.push(' ');
         res += &self.fifty_move_counter.to_string();
 
-        //full moves counter
-        // TODO(lucypero): add moves done in the game!!
-
-
         // The number of the full move. It starts at 1, and is incremented after Black's move.
-
-
         res.push(' ');
         res += &self.get_full_move_count().to_string();
 

@@ -169,6 +169,9 @@ pub struct GfxState {
 
     //cache moves as strings
     moves_str: Vec<String>,
+
+    //is board flipped (white or black perspective)
+    is_board_flipped: bool
 }
 
 fn get_board_coord(tile: Tile) -> Coord {
@@ -243,6 +246,7 @@ impl GfxState {
             is_promotion_ui_shown: false,
             skin1,
             moves_str: vec![],
+            is_board_flipped: true,
         };
 
         state.sync_board(&mut game.get_board());
@@ -264,11 +268,21 @@ impl GfxState {
     }
 
     fn get_coord_col(&self, coord: Coord) -> ColBox {
-        ColBox {
-            x: self.board_col.x + (self.board_col.w / 8.0) * coord.x as f32,
-            y: self.board_col.y + (self.board_col.h / 8.0) * (7 - coord.y) as f32,
-            w: self.board_col.w / 8.0,
-            h: self.board_col.w / 8.0,
+
+        if self.is_board_flipped {
+            ColBox {
+                x: self.board_col.x + (self.board_col.w / 8.0) * (7 - coord.x) as f32,
+                y: self.board_col.y + (self.board_col.h / 8.0) * (coord.y) as f32,
+                w: self.board_col.w / 8.0,
+                h: self.board_col.w / 8.0,
+            }
+        } else {
+            ColBox {
+                x: self.board_col.x + (self.board_col.w / 8.0) * coord.x as f32,
+                y: self.board_col.y + (self.board_col.h / 8.0) * (7 - coord.y) as f32,
+                w: self.board_col.w / 8.0,
+                h: self.board_col.w / 8.0,
+            }
         }
     }
 
@@ -281,6 +295,7 @@ impl GfxState {
                 Coord::from(tile),
                 piece.0,
                 piece.1,
+                self.is_board_flipped
             ));
         }
     }
@@ -538,18 +553,35 @@ impl GfxState {
 
     fn draw_legal_move_tiles_at(&self, coords: &Vec<Coord>) {
         for coord in coords {
-            draw_circle(
-                self.board_col.x
+            if self.is_board_flipped {
+                draw_circle(
+                    self.board_col.x
+                    + (self.board_col.w / 8.0 / 2.0)
+                    + (7 - coord.x) as f32 * (self.board_col.w / 8.0),
+                    self.board_col.y
+                    + (self.board_col.h / 8.0 / 2.0)
+                    + (coord.y) as f32 * (self.board_col.h / 8.0),
+                    12.0,
+                    HIGHLIGHT_COLOR,
+                );
+            }
+            else {
+                draw_circle(
+                    self.board_col.x
                     + (self.board_col.w / 8.0 / 2.0)
                     + coord.x as f32 * (self.board_col.w / 8.0),
-                self.board_col.y
+                    self.board_col.y
                     + (self.board_col.h / 8.0 / 2.0)
                     + (7 - coord.y) as f32 * (self.board_col.h / 8.0),
-                12.0,
-                HIGHLIGHT_COLOR,
-            );
+                    12.0,
+                    HIGHLIGHT_COLOR,
+                );
+            }
+
+
         }
     }
+
 
     async fn keys_swap_textures(&mut self) {
         if input::is_key_pressed(KeyCode::B) {
@@ -595,6 +627,13 @@ impl GfxState {
         );
     }
 
+    fn flip_board(&mut self) {
+        self.is_board_flipped = !self.is_board_flipped;
+        for piece in &mut self.pieces {
+            piece.flip(&self.board_col);
+        }
+    }
+
     pub async fn draw(&mut self, game: &mut GameState) -> bool {
         // self.keys_swap_textures().await;
 
@@ -608,6 +647,10 @@ impl GfxState {
         
         if input::is_key_pressed(KeyCode::Backspace) {
             res = true;
+        }
+
+        if input::is_key_pressed(KeyCode::T) {
+            self.flip_board();
         }
 
         egui_macroquad::ui(|egui_ctx| {
@@ -703,8 +746,8 @@ impl GfxState {
             self.show_move(game, 0);
         }
 
+        // When you stop pressing the mouse click to commit to a move
         if !input::is_mouse_button_down(MouseButton::Left) && self.is_dragged {
-            // println!("dragged stopped!");
             self.is_dragged = false;
 
             let mouse_vec = input::mouse_position();
@@ -713,10 +756,19 @@ impl GfxState {
                 //get tile where the mouse was in
                 let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
                 let coord_y = (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32;
-                let board_coord = Coord {
-                    x: coord_x,
-                    y: 7 - coord_y,
-                };
+                let board_coord;
+                if self.is_board_flipped {
+                    board_coord = Coord {
+                        x: 7 - coord_x,
+                        y: coord_y,
+                    };
+                }
+                else {
+                    board_coord = Coord {
+                        x: coord_x,
+                        y: 7 - coord_y,
+                    };
+                }
 
                 let res = self.attempt_move_execution(self.dragged_piece_i, board_coord, game);
 
@@ -731,6 +783,7 @@ impl GfxState {
             self.sync_board(&game.get_board());
         }
 
+        // When you try to grab a piece with the mouse and mouse click
         if input::is_mouse_button_pressed(MouseButton::Left)
             && !self.is_dragged
             && self.viewed_move == game.move_count()
@@ -795,7 +848,12 @@ impl GfxState {
                     y: 7 - coord_y,
                 };
 
-                let col = self.get_coord_col(board_coord);
+                let col = ColBox {
+                    x: self.board_col.x + (self.board_col.w / 8.0) * board_coord.x as f32,
+                    y: self.board_col.y + (self.board_col.h / 8.0) * (7 - board_coord.y) as f32,
+                    w: self.board_col.w / 8.0,
+                    h: self.board_col.w / 8.0,
+                };
 
                 draw_rectangle_lines(col.x, col.y, col.w, col.h, 15.0, HIGHLIGHT_COLOR);
             }
@@ -876,7 +934,26 @@ impl GfxState {
         //draw arrows
         for arrow in &self.arrows {
             match arrow {
-                Arrow::Arrow(coord_from, coord_to) => {
+                Arrow::Arrow(coord_from_orig, coord_to_orig) => {
+
+                    let coord_from: Coord;
+                    let coord_to: Coord;
+
+                    if self.is_board_flipped {
+                        coord_from = Coord {
+                            x: 7 - coord_from_orig.x,
+                            y: 7 - coord_from_orig.y
+                        };
+                        coord_to = Coord {
+                            x: 7 - coord_to_orig.x,
+                            y: 7 - coord_to_orig.y
+                        };
+                    } else {
+                        coord_from = *coord_from_orig;
+                        coord_to = *coord_to_orig;
+                    }
+
+
                     let t = 10.0; //stem thiccness
                     let t_offset;
 
@@ -1000,7 +1077,20 @@ impl GfxState {
                         HIGHLIGHT_COLOR,
                     );
                 }
-                Arrow::Circle(coord) => {
+                Arrow::Circle(coord_orig) => {
+
+                    let coord: Coord;
+
+                    if self.is_board_flipped {
+                        coord = Coord {
+                            x: 7 - coord_orig.x,
+                            y: 7 - coord_orig.y
+                        };
+                    } else {
+                        coord = *coord_orig;
+                    }
+
+
                     draw_rectangle(
                         self.board_col.x + (self.board_col.w / 8.0) * coord.x as f32,
                         self.board_col.y + (self.board_col.h / 8.0) * (7 - coord.y) as f32,
@@ -1050,10 +1140,11 @@ struct Piece {
     pos: Coord,
     team: ChessTeam,
     piece_type: ChessPiece,
+    flipped_board: bool
 }
 
 impl Piece {
-    fn init(board_col: &ColBox, pos: Coord, team: ChessTeam, piece_type: ChessPiece) -> Piece {
+    fn init(board_col: &ColBox, pos: Coord, team: ChessTeam, piece_type: ChessPiece, flipped_board: bool) -> Piece {
         let mut piece = Piece {
             col: ColBox {
                 x: 0.0,
@@ -1064,14 +1155,26 @@ impl Piece {
             pos,
             team,
             piece_type,
+            flipped_board
         };
         piece.update_col(board_col);
         piece
     }
 
+    fn flip(&mut self, board_col: &ColBox) {
+        self.flipped_board = !self.flipped_board;
+        self.update_col(board_col)
+    }
+
     fn update_col(&mut self, board_col: &ColBox) {
-        self.col.x = (board_col.w / 8.0) * (self.pos.x) as f32 + board_col.x;
-        self.col.y = (board_col.h / 8.0) * (7 - self.pos.y) as f32 + board_col.y;
+        if self.flipped_board {
+            self.col.x = (board_col.w / 8.0) * (7 - self.pos.x) as f32 + board_col.x;
+            self.col.y = (board_col.h / 8.0) * (self.pos.y) as f32 + board_col.y;
+        }
+        else {
+            self.col.x = (board_col.w / 8.0) * (self.pos.x) as f32 + board_col.x;
+            self.col.y = (board_col.h / 8.0) * (7 - self.pos.y) as f32 + board_col.y;
+        }
     }
 
     fn draw(&self, atlas_tex: &Texture2D) {
@@ -1152,6 +1255,8 @@ impl Piece {
             if self.team == ChessTeam::White {
                 atlas_pos_x += 6;
             }
+
+
 
             params = DrawTextureParams {
                 dest_size: Some(vec2 (
