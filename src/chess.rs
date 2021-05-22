@@ -1,5 +1,4 @@
 //All the actual chess game logic
-
 use crate::move_parser;
 use ansi_term::Colour;
 use ansi_term::Style;
@@ -9,6 +8,7 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::io::{self, BufRead};
 use std::ops;
+use serde::{Serialize, Deserialize};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ChessTeam {
@@ -37,7 +37,7 @@ impl fmt::Display for ChessTeam {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ChessPiece {
     Pawn,
     Rook,
@@ -319,7 +319,7 @@ impl Coord {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct TeamedChessPiece(pub ChessTeam, pub ChessPiece);
 
-#[derive(Debug, Eq, PartialEq, TryFromPrimitive, Hash, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, TryFromPrimitive, Hash, Copy, Clone)]
 #[repr(u32)]
 #[rustfmt::skip]
 pub enum Tile {
@@ -434,7 +434,7 @@ impl TryFrom<Coord> for Tile {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 pub enum Move {
     PieceMove {
         piece: ChessPiece,

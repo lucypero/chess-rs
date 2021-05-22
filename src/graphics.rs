@@ -1,9 +1,9 @@
 use std::cmp;
 use std::convert::TryFrom;
 
-use crate::chess::{
+use crate::{MenuChange, chess::{
     Board, ChessPiece, ChessTeam, Coord, GameEndState, GameState, Move, MoveError, Tile, self
-};
+}};
 use egui::CtxRef;
 use macroquad::input;
 use macroquad::prelude::*;
@@ -16,6 +16,19 @@ use macroquad::ui::{
 };
 
 use crate::MainMenuState;
+use crate::multiplayer::{
+    MPState
+};
+
+// player input that code outside graphics may be interested in.
+// input is caught by this graphics module but it won't try to modify the game state
+// that's why this enum is returned every frame to the caller so the caller can fiddle
+// with the game state however it wants.
+pub enum PlayerInput {
+    GoBack,
+    Move(Move),
+}
+
 
 // use crate::GameState as ProgramState;
 
@@ -181,7 +194,7 @@ fn get_board_coord(tile: Tile) -> Coord {
 }
 
 impl GfxState {
-    pub async fn init(game: &mut GameState) -> GfxState {
+    pub async fn init(game: &mut GameState, is_board_flipped: bool) -> GfxState {
         let piece_tex_index = 0;
         let board_tex_index = 0;
 
@@ -246,7 +259,7 @@ impl GfxState {
             is_promotion_ui_shown: false,
             skin1,
             moves_str: vec![],
-            is_board_flipped: true,
+            is_board_flipped,
         };
 
         state.sync_board(&mut game.get_board());
@@ -301,12 +314,12 @@ impl GfxState {
     }
 
     //so this constructs the move and calls gamestate.perform_move
-    fn attempt_move_execution(
+    fn construct_move(
         &mut self,
         piece_i: usize,
         coord_to: Coord,
         game: &mut GameState,
-    ) -> Result<(), MoveError> {
+    ) -> Result<Move, MoveError> {
         let piece = &self.pieces[piece_i];
 
         let tile_from = Tile::try_from(piece.pos).unwrap();
@@ -381,7 +394,8 @@ impl GfxState {
             };
         }
 
-        game.perform_move(the_move)
+        Ok(the_move)
+        // game.perform_move(the_move)
     }
 
     fn draw_promotion(&mut self, game: &mut GameState) {
@@ -634,10 +648,18 @@ impl GfxState {
         }
     }
 
-    pub async fn draw(&mut self, game: &mut GameState) -> bool {
+    pub fn move_was_made(&mut self, game: &mut GameState) {
+        self.viewed_move = game.move_count();
+        self.moves_str
+            .push(game.get_move_in_chess_notation(self.viewed_move - 1));
+        self.handle_end_state(game);
+        self.sync_board(&game.get_board());
+    }
+
+    pub async fn draw(&mut self, game: &mut GameState) -> Option<PlayerInput> {
         // self.keys_swap_textures().await;
 
-        let mut res = false;
+        let mut res = None;
 
         clear_background(BACKGROUND_COLOR);
 
@@ -646,7 +668,7 @@ impl GfxState {
         }
         
         if input::is_key_pressed(KeyCode::Backspace) {
-            res = true;
+            res = Some(PlayerInput::GoBack);
         }
 
         if input::is_key_pressed(KeyCode::T) {
@@ -770,14 +792,21 @@ impl GfxState {
                     };
                 }
 
-                let res = self.attempt_move_execution(self.dragged_piece_i, board_coord, game);
-
-                if res.is_ok() {
-                    self.viewed_move = game.move_count();
-                    self.moves_str
-                        .push(game.get_move_in_chess_notation(self.viewed_move - 1));
-                    self.handle_end_state(game);
+                let the_move = self.construct_move(self.dragged_piece_i, board_coord, game);
+                if let Ok(the_move) = the_move {
+                    res = Some(PlayerInput::Move(the_move));
                 }
+
+
+
+                // let res = self.attempt_move_execution(self.dragged_piece_i, board_coord, game);
+
+                // if res.is_ok() {
+                //     self.viewed_move = game.move_count();
+                //     self.moves_str
+                //         .push(game.get_move_in_chess_notation(self.viewed_move - 1));
+                //     self.handle_end_state(game);
+                // }
             }
 
             self.sync_board(&game.get_board());
@@ -1280,10 +1309,15 @@ impl Piece {
     }
 }
 
-pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> Option<GameState> {
+pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
 
     let mut play_button_clicked = false;
     let mut play_fen_clicked = false;
+
+    let mut play_host_clicked = false;
+    let mut play_client_clicked = false;
+
+    let mut res = MenuChange::None;
 
     clear_background(BACKGROUND_COLOR);
 
@@ -1293,7 +1327,13 @@ pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> Option<GameState> {
                 egui::Window::new("Main Menu!")
                     .show(egui_ctx, |ui| {
                         if ui.add(egui::Button::new("Play against yourself")).clicked() {
-                            *mm_state = MainMenuState::PlayMenu{fen_string: String::new()};
+                            res = MenuChange::Menu(MainMenuState::PlayMenu{fen_string: String::new()});
+                        }
+                        if ui.add(egui::Button::new("Play online (host)")).clicked() {
+                            play_host_clicked = true;
+                        }
+                        if ui.add(egui::Button::new("Play online (client)")).clicked() {
+                            play_client_clicked = true;
                         }
                     });
             }
@@ -1318,16 +1358,21 @@ pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> Option<GameState> {
     egui_macroquad::draw();
 
     if play_button_clicked {
-        return Some(GameState::init())
+        res = MenuChange::Game(GameState::init());
     } else if play_fen_clicked {
-
         if let MainMenuState::PlayMenu{fen_string} = mm_state {
             let game = chess::parse_fen(fen_string.to_string());
             if let Some(game) = game {
-                return Some(game);
+                res = MenuChange::Game(game);
             }
         }
+    } else if play_host_clicked {
+        let mp_state = MPState::init(true).await;
+        res = MenuChange::MultiplayerGame(mp_state);
+    } else if play_client_clicked {
+        let mp_state = MPState::init(false).await;
+        res = MenuChange::MultiplayerGame(mp_state);
     }
 
-    None
+    res
 }

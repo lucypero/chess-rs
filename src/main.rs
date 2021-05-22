@@ -4,6 +4,10 @@
 mod chess;
 mod graphics;
 mod move_parser;
+mod multiplayer;
+
+use crate::multiplayer::MPState;
+
 
 fn get_mq_conf() -> macroquad::prelude::Conf {
     graphics::get_mq_conf()
@@ -68,7 +72,8 @@ pub enum MainMenuState {
 
 pub enum GameState {
     MainMenu(MainMenuState),
-    InGame(chess::GameState, graphics::GfxState)
+    InGame(chess::GameState, graphics::GfxState),
+    MultiplayerSession(MPState)
 }
 
 impl GameState {
@@ -79,12 +84,16 @@ impl GameState {
 
     async fn swap_to_in_game(&mut self, mut game : chess::GameState) {
 
-        let gfx_state = graphics::GfxState::init(&mut game).await;
+        let gfx_state = graphics::GfxState::init(&mut game, false).await;
         *self = GameState::InGame(game, gfx_state);
     }
 
     fn swap_to_mm(&mut self) {
         *self = GameState::MainMenu(MainMenuState::Main);
+    }
+
+    async fn swap_to_multiplayer(&mut self, mp_state: MPState) {
+        *self = GameState::MultiplayerSession(mp_state);
     }
 }
 
@@ -112,18 +121,48 @@ async fn main() {
     }
 }
 
+pub enum MenuChange {
+    Menu(MainMenuState),
+    Game(chess::GameState),
+    MultiplayerGame(MPState),
+    None
+}
+
 // async fn game_loop(game: &mut GameState, gfx_state: &mut graphics::GfxState) {
 async fn game_loop(game_state : &mut GameState) {
 
     match game_state {
         GameState::MainMenu(mm_s) => {
-            let game = graphics::draw_main_menu(mm_s).await;
-            if let Some(game) = game {
-                game_state.swap_to_in_game(game).await;
+            // let change = graphics::draw_main_menu(mm_s).await;
+
+            match graphics::draw_main_menu(mm_s).await {
+                MenuChange::Menu(menu) => {
+                    *game_state = GameState::MainMenu(menu);
+                }
+                MenuChange::Game(gs) => {
+                    game_state.swap_to_in_game(gs).await;
+                }
+                MenuChange::MultiplayerGame(mp_state) => {
+                    game_state.swap_to_multiplayer(mp_state).await;
+                }
+                MenuChange::None => {
+
+                }
             }
         }
         GameState::InGame(game, gfx_state) => {
-            let go_back = gfx_state.draw(game).await;
+            let player_input = gfx_state.draw(game).await;
+            if let Some(pl_input) = player_input {
+                match pl_input {
+                    graphics::PlayerInput::GoBack => {
+                        game_state.swap_to_mm();
+                    }
+                    graphics::PlayerInput::Move(_) => {}
+                }
+            }
+        }
+        GameState::MultiplayerSession(mp_state) => {
+            let go_back = mp_state.mp_loop().await;
             if go_back {
                 game_state.swap_to_mm();
             }
