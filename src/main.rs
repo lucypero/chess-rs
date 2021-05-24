@@ -7,6 +7,7 @@ mod move_parser;
 mod multiplayer;
 
 use crate::multiplayer::MPState;
+use futures::executor::block_on;
 
 
 fn get_mq_conf() -> macroquad::prelude::Conf {
@@ -82,9 +83,8 @@ impl GameState {
         GameState::MainMenu(MainMenuState::Main)
     }
 
-    async fn swap_to_in_game(&mut self, mut game : chess::GameState) {
-
-        let gfx_state = graphics::GfxState::init(&mut game, false).await;
+    fn swap_to_in_game(&mut self, mut game : chess::GameState) {
+        let gfx_state = graphics::GfxState::init(&mut game, false);
         *self = GameState::InGame(game, gfx_state);
     }
 
@@ -92,7 +92,7 @@ impl GameState {
         *self = GameState::MainMenu(MainMenuState::Main);
     }
 
-    async fn swap_to_multiplayer(&mut self, mp_state: MPState) {
+    fn swap_to_multiplayer(&mut self, mp_state: MPState) {
         *self = GameState::MultiplayerSession(mp_state);
     }
 }
@@ -115,9 +115,8 @@ async fn main() {
     let mut game_state = GameState::init_mm();
 
     loop {
-        // game_loop(&mut game, &mut gfx_state).await;
-        game_loop(&mut game_state).await;
-        macroquad::prelude::next_frame().await
+        game_loop(&mut game_state);
+        macroquad::prelude::next_frame().await;
     }
 }
 
@@ -129,21 +128,20 @@ pub enum MenuChange {
 }
 
 // async fn game_loop(game: &mut GameState, gfx_state: &mut graphics::GfxState) {
-async fn game_loop(game_state : &mut GameState) {
+fn game_loop(game_state : &mut GameState) {
 
     match game_state {
         GameState::MainMenu(mm_s) => {
-            // let change = graphics::draw_main_menu(mm_s).await;
 
-            match graphics::draw_main_menu(mm_s).await {
+            match graphics::draw_main_menu(mm_s) {
                 MenuChange::Menu(menu) => {
                     *game_state = GameState::MainMenu(menu);
                 }
                 MenuChange::Game(gs) => {
-                    game_state.swap_to_in_game(gs).await;
+                    game_state.swap_to_in_game(gs);
                 }
                 MenuChange::MultiplayerGame(mp_state) => {
-                    game_state.swap_to_multiplayer(mp_state).await;
+                    game_state.swap_to_multiplayer(mp_state);
                 }
                 MenuChange::None => {
 
@@ -151,7 +149,7 @@ async fn game_loop(game_state : &mut GameState) {
             }
         }
         GameState::InGame(game, gfx_state) => {
-            let player_input = gfx_state.draw(game).await;
+            let player_input = gfx_state.draw(game);
             if let Some(pl_input) = player_input {
                 match pl_input {
                     graphics::PlayerInput::GoBack => {
@@ -162,7 +160,7 @@ async fn game_loop(game_state : &mut GameState) {
             }
         }
         GameState::MultiplayerSession(mp_state) => {
-            let go_back = mp_state.mp_loop().await;
+            let go_back = mp_state.mp_loop();
             if go_back {
                 game_state.swap_to_mm();
             }

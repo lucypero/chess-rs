@@ -7,6 +7,7 @@ use crate::{MenuChange, chess::{
 use egui::CtxRef;
 use macroquad::input;
 use macroquad::prelude::*;
+use futures::executor::block_on;
 
 use macroquad::ui::{
     hash,
@@ -194,7 +195,7 @@ fn get_board_coord(tile: Tile) -> Coord {
 }
 
 impl GfxState {
-    pub async fn init(game: &mut GameState, is_board_flipped: bool) -> GfxState {
+    pub fn init(game: &mut GameState, is_board_flipped: bool) -> GfxState {
         let piece_tex_index = 0;
         let board_tex_index = 0;
 
@@ -236,8 +237,8 @@ impl GfxState {
             }
         };
 
-        let board_tex = load_texture(BOARD_TEXTURES[board_tex_index]).await.unwrap();
-        let pieces_tex = load_texture(PIECE_TEXTURES[piece_tex_index]).await.unwrap();
+        let board_tex = block_on(load_texture(BOARD_TEXTURES[board_tex_index])).unwrap();
+        let pieces_tex = block_on(load_texture(PIECE_TEXTURES[piece_tex_index])).unwrap();
 
         let viewed_move = cmp::max(0 as usize, game.move_count()) as usize;
 
@@ -597,14 +598,14 @@ impl GfxState {
     }
 
 
-    async fn keys_swap_textures(&mut self) {
+    fn keys_swap_textures(&mut self) {
         if input::is_key_pressed(KeyCode::B) {
             self.board_tex_index += 1;
             if self.board_tex_index >= BOARD_TEXTURES.len() {
                 self.board_tex_index = 0;
             }
 
-            self.board_tex = load_texture(BOARD_TEXTURES[self.board_tex_index]).await.unwrap();
+            self.board_tex = block_on(load_texture(BOARD_TEXTURES[self.board_tex_index])).unwrap();
 
             println!("board tex: {}", BOARD_TEXTURES[self.board_tex_index]);
         }
@@ -615,7 +616,7 @@ impl GfxState {
                 self.piece_tex_index = 0;
             }
 
-            self.pieces_tex = load_texture(PIECE_TEXTURES[self.piece_tex_index]).await.unwrap();
+            self.pieces_tex = block_on(load_texture(PIECE_TEXTURES[self.piece_tex_index])).unwrap();
             println!("piece tex: {}", PIECE_TEXTURES[self.piece_tex_index]);
         }
     }
@@ -656,8 +657,7 @@ impl GfxState {
         self.sync_board(&game.get_board());
     }
 
-    pub async fn draw(&mut self, game: &mut GameState) -> Option<PlayerInput> {
-        // self.keys_swap_textures().await;
+    pub fn draw(&mut self, game: &mut GameState) -> Option<PlayerInput> {
 
         let mut res = None;
 
@@ -1309,7 +1309,7 @@ impl Piece {
     }
 }
 
-pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
+pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
 
     let mut play_button_clicked = false;
     let mut play_fen_clicked = false;
@@ -1367,10 +1367,10 @@ pub async fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
             }
         }
     } else if play_host_clicked {
-        let mp_state = MPState::init(true).await;
+        let mp_state = MPState::init(true);
         res = MenuChange::MultiplayerGame(mp_state);
     } else if play_client_clicked {
-        let mp_state = MPState::init(false).await;
+        let mp_state = MPState::init(false);
         res = MenuChange::MultiplayerGame(mp_state);
     }
 

@@ -25,7 +25,7 @@ pub struct MPState {
 
 impl MPState {
 
-    pub async fn init(is_host: bool) -> MPState {
+    pub fn init(is_host: bool) -> MPState {
         let mut  game = GameState::init();
 
         let flipped_board;
@@ -35,7 +35,7 @@ impl MPState {
             flipped_board = true;
         }
 
-        let gfx_state = GfxState::init(&mut game, flipped_board).await;
+        let gfx_state = GfxState::init(&mut game, flipped_board);
 
         let mut tcp_stream_op = None;
 
@@ -81,10 +81,11 @@ impl MPState {
         MPState{is_host, game, gfx_state, tcp_stream}
     }
 
-    // pub async fn init_with_game(is_host: bool, mut game:GameState) -> MPState {
-    //     let gfx_state = GfxState::init(&mut game).await;
+    // pub fn init_with_game(is_host: bool, mut game:GameState) -> MPState {
+    //     let gfx_state = GfxState::init(&mut game);
     //     MPState{is_host, game, gfx_state}
     // }
+
     fn send_move(&mut self, the_move: Move) {
 
         let my_options = bincode::DefaultOptions::new()
@@ -128,7 +129,7 @@ impl MPState {
     }
 
     //true to go back to menu
-    pub async fn mp_loop(&mut self) -> bool {
+    pub fn mp_loop(&mut self) -> bool {
 
         let mut res = false;
 
@@ -140,7 +141,7 @@ impl MPState {
             }
         }
 
-        let player_input = self.gfx_state.draw(&mut self.game).await;
+        let player_input = self.gfx_state.draw(&mut self.game);
         
         if let Some(input) = player_input {
             match input {
