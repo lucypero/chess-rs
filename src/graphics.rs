@@ -185,7 +185,9 @@ pub struct GfxState {
     moves_str: Vec<String>,
 
     //is board flipped (white or black perspective)
-    is_board_flipped: bool
+    is_board_flipped: bool,
+
+    locked_team: Option<ChessTeam>
 }
 
 fn get_board_coord(tile: Tile) -> Coord {
@@ -261,11 +263,16 @@ impl GfxState {
             skin1,
             moves_str: vec![],
             is_board_flipped,
+            locked_team: None
         };
 
         state.sync_board(&mut game.get_board());
 
         state
+    }
+    
+    pub fn set_team_lock(&mut self, team: Option<ChessTeam>) {
+        self.locked_team = team;
     }
 
     //display board position at move [move_i]
@@ -828,6 +835,15 @@ impl GfxState {
                     if game.whose_turn() != piece.team {
                         continue;
                     }
+
+                    // check if the team is not locked
+                    if let Some(team) = self.locked_team {
+                        if piece.team == team {
+                            continue;
+                        }
+                    }
+
+
                     self.is_dragged = true;
 
                     // populate dragged legal moves
@@ -1323,12 +1339,13 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
 
     egui_macroquad::ui(|egui_ctx| {
         match mm_state {
-            MainMenuState::Main => {
+            MainMenuState::Main{ip_string} => {
                 egui::Window::new("Main Menu!")
                     .show(egui_ctx, |ui| {
                         if ui.add(egui::Button::new("Play against yourself")).clicked() {
                             res = MenuChange::Menu(MainMenuState::PlayMenu{fen_string: String::new()});
                         }
+                        ui.add(egui::TextEdit::singleline(ip_string));
                         if ui.add(egui::Button::new("Play online (host)")).clicked() {
                             play_host_clicked = true;
                         }
@@ -1367,11 +1384,15 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
             }
         }
     } else if play_host_clicked {
-        let mp_state = MPState::init(true);
-        res = MenuChange::MultiplayerGame(mp_state);
+        if let MainMenuState::Main{ip_string} = mm_state {
+            let mp_state = MPState::init(true, ip_string.clone());
+            res = MenuChange::MultiplayerGame(mp_state);
+        }
     } else if play_client_clicked {
-        let mp_state = MPState::init(false);
-        res = MenuChange::MultiplayerGame(mp_state);
+        if let MainMenuState::Main{ip_string} = mm_state {
+            let mp_state = MPState::init(false, ip_string.clone());
+            res = MenuChange::MultiplayerGame(mp_state);
+        }
     }
 
     res

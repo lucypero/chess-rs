@@ -66,7 +66,7 @@ fn parse_args(args: Vec<String>) -> Args {
 }
 
 pub enum MainMenuState {
-    Main,
+    Main{ ip_string : String },
     PlayMenu{ fen_string: String },
     OptionsMenu
 }
@@ -80,7 +80,7 @@ pub enum GameState {
 impl GameState {
     //called every time game state is switched
     fn init_mm() -> GameState {
-        GameState::MainMenu(MainMenuState::Main)
+        GameState::MainMenu(MainMenuState::Main{ip_string:"0.0.0.0:3333".to_string()})
     }
 
     fn swap_to_in_game(&mut self, mut game : chess::GameState) {
@@ -89,7 +89,7 @@ impl GameState {
     }
 
     fn swap_to_mm(&mut self) {
-        *self = GameState::MainMenu(MainMenuState::Main);
+        *self = GameState::MainMenu(MainMenuState::Main{ip_string:"0.0.0.0:3333".to_string()})
     }
 
     fn swap_to_multiplayer(&mut self, mp_state: MPState) {
