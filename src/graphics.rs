@@ -1,9 +1,11 @@
 use std::cmp;
 use std::convert::TryFrom;
 
-use crate::{MenuChange, chess::{
+use chess::{
     Board, ChessPiece, ChessTeam, Coord, GameEndState, GameState, Move, MoveError, Tile, self
-}};
+};
+
+use crate::{MenuChange};
 use egui::CtxRef;
 use macroquad::input;
 use macroquad::prelude::*;

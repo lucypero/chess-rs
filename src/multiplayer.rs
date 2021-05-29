@@ -1,14 +1,16 @@
-use std::{net::{TcpListener, TcpStream}, time::Duration};
+use std::{net::{TcpListener, TcpStream}};
 use serde::{Serialize, Deserialize};
 use bincode::Options;
 use std::io::{Read, Write};
-use std::{thread, time};
+use std::{thread};
 use std::sync::mpsc::{self, Sender, Receiver};
 
-use crate::{chess::{ChessPiece, ChessTeam, GameState, Move, Tile}, graphics::{
-        GfxState,
-        PlayerInput
-    }};
+use chess::{ChessPiece, ChessTeam, GameState, Move, Tile};
+
+use crate::graphics::{
+    GfxState,
+    PlayerInput
+};
 
 pub struct MPState {
     is_host : bool,
@@ -135,7 +137,7 @@ impl MPState {
             //recv value from socket and send it thru channel
             loop {
                 let mut msg_buffer: Vec<u8> = vec![0;message_size];
-                stream2.read(&mut msg_buffer);
+                stream2.read(&mut msg_buffer).expect("error while reading socket");
 
                 let msg_decoded : Message = bincode::deserialize(&msg_buffer).unwrap();
                 tx_recv.send(msg_decoded).unwrap();
@@ -159,16 +161,8 @@ impl MPState {
     // }
 
     fn send_move(&mut self, the_move: Move) {
-
-        let my_options = bincode::DefaultOptions::new()
-            .with_fixint_encoding()
-            .allow_trailing_bytes();
-
         let message = Message::Move(the_move);
-
-        // let msg_encoded: Vec<u8> = my_options.serialize(&message).unwrap();
         self.tx_send.send(message).unwrap();
-        // self.tcp_stream.write(&move_encoded).unwrap();
     }
 
     fn recieve_move_maybe(&mut self) -> Option<Move> {

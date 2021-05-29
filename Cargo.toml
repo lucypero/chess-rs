@@ -3,6 +3,7 @@ name = "chess"
 version = "0.1.0"
 authors = ["Lucy <lucyperopero@gmail.com>"]
 edition = "2018"
+default-run = "chess-rs-server"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,3 +19,16 @@ futures = "0.3.15"
 
 [profile.dev.package.image]
 opt-level = 3
+
+[lib]
+name = "chess"
+path = "src/chess.rs"
+
+[[bin]]
+name = "chess-rs"
+path = "src/main.rs"
+
+[[bin]]
+name = "chess-rs-server"
+path = "src/server/main.rs"
+

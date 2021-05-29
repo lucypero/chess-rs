@@ -1,5 +1,10 @@
 //All the actual chess game logic
-use crate::move_parser;
+#![warn(rust_2018_idioms)]
+#![allow(dead_code)]
+
+
+pub mod move_parser;
+
 use ansi_term::Colour;
 use ansi_term::Style;
 use num_enum::TryFromPrimitive;
