@@ -155,7 +155,14 @@ fn game_loop(game_state : &mut GameState) {
                     graphics::PlayerInput::GoBack => {
                         game_state.swap_to_mm();
                     }
-                    graphics::PlayerInput::Move(_) => {}
+                    graphics::PlayerInput::Move(chess_move, move_res) => {
+                        //ok so here u do stuff with the move
+                        // if u are the client u send the move to the server and stuff
+                        // let move_res = game.perform_move(chess_move);
+                        // if let Ok(()) = move_res {
+                            // gfx_state.move_was_made(game);
+                        // }
+                    }
                 }
             }
         }

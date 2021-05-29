@@ -27,7 +27,7 @@ use crate::multiplayer::{
 // with the game state however it wants.
 pub enum PlayerInput {
     GoBack,
-    Move(Move),
+    Move(Move, Result<(), MoveError>),
 }
 
 
@@ -783,8 +783,8 @@ impl GfxState {
             let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
             if self.board_col.is_in_box(mouse_vec) {
                 //get tile where the mouse was in
-                let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
-                let coord_y = (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32;
+                let coord_x = std::cmp::min((((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as u32, 7) as i32;
+                let coord_y = std::cmp::min((((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as u32, 7) as i32;
                 let board_coord;
                 if self.is_board_flipped {
                     board_coord = Coord {
@@ -801,9 +801,18 @@ impl GfxState {
 
                 let the_move = self.construct_move(self.dragged_piece_i, board_coord, game);
                 if let Ok(the_move) = the_move {
-                    res = Some(PlayerInput::Move(the_move));
-                }
 
+                    let move_res = game.perform_move(the_move);
+
+                    if move_res.is_ok() {
+                        self.viewed_move = game.move_count();
+                        self.moves_str
+                            .push(game.get_move_in_chess_notation(self.viewed_move - 1));
+                        self.handle_end_state(game);
+                    }
+
+                    res = Some(PlayerInput::Move(the_move, move_res));
+                }
 
 
                 // let res = self.attempt_move_execution(self.dragged_piece_i, board_coord, game);
@@ -886,8 +895,8 @@ impl GfxState {
             //frame the tile on hover
             if self.board_col.is_in_box(mouse_vec) {
                 //get tile where the mouse was in
-                let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
-                let coord_y = (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32;
+                let coord_x = std::cmp::min((((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32, 7);
+                let coord_y = std::cmp::min((((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32, 7);
                 let board_coord = Coord {
                     x: coord_x,
                     y: 7 - coord_y,

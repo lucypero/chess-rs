@@ -203,14 +203,14 @@ impl MPState {
         if let Some(input) = player_input {
             match input {
                 PlayerInput::GoBack => {res = true;}
-                PlayerInput::Move(chess_move) => {
+                PlayerInput::Move(chess_move, move_res) => {
                     //ok so here u do stuff with the move
                     // if u are the client u send the move to the server and stuff
 
-                    let move_res = self.game.perform_move(chess_move);
+                    // let move_res = self.game.perform_move(chess_move);
                     if let Ok(()) = move_res {
 
-                        self.gfx_state.move_was_made(&mut self.game);
+                        // self.gfx_state.move_was_made(&mut self.game);
                         println!("sent move {}", chess_move.clone());
                         self.send_move(chess_move);
                     }
