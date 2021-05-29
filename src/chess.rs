@@ -15,7 +15,7 @@ use std::io::{self, BufRead};
 use std::ops;
 use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ChessTeam {
     Black,
     White,

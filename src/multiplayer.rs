@@ -1,4 +1,4 @@
-use std::{net::{TcpListener, TcpStream}};
+use std::{net::{TcpStream}};
 use serde::{Serialize, Deserialize};
 use bincode::Options;
 use std::io::{Read, Write};
@@ -13,7 +13,6 @@ use crate::graphics::{
 };
 
 pub struct MPState {
-    is_host : bool,
     team: ChessTeam,
     game: GameState,
     gfx_state: GfxState,
@@ -23,60 +22,37 @@ pub struct MPState {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Message {
+    GameStart(chess::ChessTeam),
     Move(Move),
 }
 
 impl MPState {
 
-    pub fn init(is_host: bool, ip: String) -> MPState {
+    //connect to server and wait for game start
+    pub fn init(ip: String) -> MPState {
         let mut  game = GameState::init();
 
-        let flipped_board;
-        if is_host {
-            flipped_board = false;
-        } else {
-            flipped_board = true;
-        }
+        // let flipped_board;
+        // if is_host {
+        //     flipped_board = false;
+        // } else {
+        //     flipped_board = true;
+        // }
 
-        let mut gfx_state = GfxState::init(&mut game, flipped_board);
+        let mut gfx_state = GfxState::init(&mut game, false);
 
         let mut tcp_stream_op = None;
 
         //gotta connect etc
-        if is_host {
-            let listener = TcpListener::bind(ip).unwrap();
-            // let listener = TcpListener::bind("0.0.0.0:3333").unwrap();
-
-            println!("Server listening on port 3333");
-
-            for stream in listener.incoming() {
-                match stream {
-                    Ok(stream) => {
-                        println!("New connection: {}", stream.peer_addr().unwrap());
-                        tcp_stream_op = Some(stream);
-                        break;
-                        // handle_client(stream)
-                    }
-                    Err(e) => {
-                        panic!("error atconnecting {}", e);
-                        /* connection failed */
-                    }
-                }
-            }
-            // close the socket server
-            // drop(listener);
-        }
-        else {
-            // side = Side::Client;
-            // match TcpStream::connect("localhost:3333") {
-            match TcpStream::connect(ip) {
-                Ok(stream) => {
-                    println!("Successfully connected to server in port 3333");
-                    tcp_stream_op = Some(stream);
-                },
-                Err(e) => {
-                    panic!("error atconnecting {}", e);
-                }
+        // side = Side::Client;
+        // match TcpStream::connect("localhost:3333") {
+        match TcpStream::connect(ip) {
+            Ok(stream) => {
+                println!("Successfully connected to server in port 3333");
+                tcp_stream_op = Some(stream);
+            },
+            Err(e) => {
+                panic!("error atconnecting {}", e);
             }
         }
 
@@ -144,15 +120,38 @@ impl MPState {
             }
         });
 
-        let team = if is_host {
-            ChessTeam::White
-        } else {
-            ChessTeam::Black
-        };
+        // let team = if is_host {
+        //     ChessTeam::White
+        // } else {
+        //     ChessTeam::Black
+        // };
 
-        gfx_state.set_team_lock(Some(team.the_other_one()));
+        // gfx_state.set_team_lock(Some(team.the_other_one()));
 
-        MPState{is_host, game, gfx_state, rx_recv, tx_send, team }
+        //wait for game start
+
+        let mut team:Option<chess::ChessTeam> = None;
+
+        match rx_recv.recv() {
+            Ok(message) => {
+                match message {
+                    Message::GameStart(the_team) => {
+                        team = Some(the_team);
+                        println!("Game started!!! team is {:?}", team);
+                    }
+                    Message::Move(the_move) => {
+                        println!("recieved move! {:?}", the_move);
+                    }
+                }
+            }
+            Err(_) => {
+                panic!("recv error");
+            }
+        }
+
+        let game = chess::GameState::init();
+
+        MPState{game, gfx_state, rx_recv, tx_send, team:team.unwrap() }
     }
 
     // pub fn init_with_game(is_host: bool, mut game:GameState) -> MPState {
@@ -172,6 +171,10 @@ impl MPState {
 
         match self.rx_recv.try_recv() {
             Ok(message) => {match message {
+                Message::GameStart(_) => {
+                    println!("games start recieved.. this shouldn't happen");
+                    return None;
+                }
                 Message::Move(the_move) => { return Some(the_move)}
             }}
             Err(mpsc::TryRecvError::Empty) => {return None}

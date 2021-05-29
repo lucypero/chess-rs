@@ -1396,12 +1396,12 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
         }
     } else if play_host_clicked {
         if let MainMenuState::Main{ip_string} = mm_state {
-            let mp_state = MPState::init(true, ip_string.clone());
+            let mp_state = MPState::init(ip_string.clone());
             res = MenuChange::MultiplayerGame(mp_state);
         }
     } else if play_client_clicked {
         if let MainMenuState::Main{ip_string} = mm_state {
-            let mp_state = MPState::init(false, ip_string.clone());
+            let mp_state = MPState::init(ip_string.clone());
             res = MenuChange::MultiplayerGame(mp_state);
         }
     }
