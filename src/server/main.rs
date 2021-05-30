@@ -91,36 +91,34 @@ fn main() {
     //main loop
     //waiting for messages
     loop {
-
-        let mut msg_buffer: Vec<u8> = vec![0;message_size];
-        match clients[0].read(&mut msg_buffer) {
-            Ok(_) => {
-                //recieved message
-                let msg_decoded : Message = bincode::deserialize(&msg_buffer).unwrap();
-                println!("recved message from client 0: {:?}", msg_decoded);
-            },
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                // wait until network socket is ready, typically implemented
-                // via platform-specific APIs such as epoll or IOCP
-            }
-            Err(e) => panic!("encountered IO error: {}", e),
-        }
-
-
-        match clients[1].read(&mut msg_buffer) {
-            Ok(_) => {
-                //recieved message
-                let msg_decoded : Message = bincode::deserialize(&msg_buffer).unwrap();
-                println!("recved message from client 1: {:?}", msg_decoded);
-            },
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                // wait until network socket is ready, typically implemented
-                // via platform-specific APIs such as epoll or IOCP
-            }
-            Err(e) => panic!("encountered IO error: {}", e),
-        }
-
+        handle_message_recieved(&mut clients, 0, message_size);
+        handle_message_recieved(&mut clients, 1, message_size);
     }
 }
 
+fn handle_message_recieved(clients: &mut Vec<TcpStream>, cl_n: usize, message_size: usize) {
 
+    let mut msg_buffer: Vec<u8> = vec![0;message_size];
+
+    match clients[cl_n].read(&mut msg_buffer) {
+        Ok(_) => {
+            //recieved message
+            let msg_decoded : Message = bincode::deserialize(&msg_buffer).unwrap();
+
+            match msg_decoded {
+                Message::GameStart(_) => {}
+                Message::Move(_the_move) => {
+                    println!("recieved move from one client. sending it to the other.");
+                    //send the move to the other client
+                    let cl_n2 = if cl_n == 0 {1} else {0};
+                    clients[cl_n2].write(&msg_buffer).unwrap();
+                }
+            }
+        },
+        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+            // wait until network socket is ready, typically implemented
+            // via platform-specific APIs such as epoll or IOCP
+        }
+        Err(e) => panic!("encountered IO error: {}", e),
+    }
+}

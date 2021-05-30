@@ -199,7 +199,9 @@ fn get_board_coord(tile: Tile) -> Coord {
 }
 
 impl GfxState {
-    pub fn init(game: &mut GameState, is_board_flipped: bool) -> GfxState {
+    // team: chess team that the client is playing as
+    //   used for flipping the board and to lock input for the other team
+    pub fn init(game: &mut GameState, team: Option<chess::ChessTeam>) -> GfxState {
         let piece_tex_index = 0;
         let board_tex_index = 0;
 
@@ -246,6 +248,21 @@ impl GfxState {
 
         let viewed_move = cmp::max(0 as usize, game.move_count()) as usize;
 
+        let mut is_board_flipped = false;
+        let mut locked_team = None;
+
+        if let Some(team) = team {
+            match team {
+                ChessTeam::Black => {
+                    is_board_flipped = true;
+                    locked_team = Some(ChessTeam::White);
+                }
+                ChessTeam::White => {
+                    locked_team = Some(ChessTeam::Black);
+                }
+            } 
+        }
+
         let mut state = GfxState {
             dragged_piece_i,
             is_dragged,
@@ -265,7 +282,7 @@ impl GfxState {
             skin1,
             moves_str: vec![],
             is_board_flipped,
-            locked_team: None
+            locked_team
         };
 
         state.sync_board(&mut game.get_board());

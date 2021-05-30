@@ -39,7 +39,6 @@ impl MPState {
         //     flipped_board = true;
         // }
 
-        let mut gfx_state = GfxState::init(&mut game, false);
 
         let mut tcp_stream_op = None;
 
@@ -130,28 +129,37 @@ impl MPState {
 
         //wait for game start
 
+
+
         let mut team:Option<chess::ChessTeam> = None;
 
-        match rx_recv.recv() {
-            Ok(message) => {
-                match message {
-                    Message::GameStart(the_team) => {
-                        team = Some(the_team);
-                        println!("Game started!!! team is {:?}", team);
-                    }
-                    Message::Move(the_move) => {
-                        println!("recieved move! {:?}", the_move);
+        loop {
+            match rx_recv.recv() {
+                Ok(message) => {
+                    match message {
+                        Message::GameStart(the_team) => {
+                            team = Some(the_team);
+                            println!("Game started!!! team is {:?}", team);
+                            break;
+                        }
+                        Message::Move(the_move) => {
+                            println!("recieved move! but game didn's start yet!?? {:?}", the_move);
+                        }
                     }
                 }
-            }
-            Err(_) => {
-                panic!("recv error");
+                Err(_) => {
+                    panic!("recv error");
+                }
             }
         }
 
+        let team = team.unwrap();
+
+        let gfx_state = GfxState::init(&mut game, Some(team));
+
         let game = chess::GameState::init();
 
-        MPState{game, gfx_state, rx_recv, tx_send, team:team.unwrap() }
+        MPState{game, gfx_state, rx_recv, tx_send, team}
     }
 
     // pub fn init_with_game(is_host: bool, mut game:GameState) -> MPState {

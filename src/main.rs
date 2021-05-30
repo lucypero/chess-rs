@@ -69,7 +69,7 @@ pub enum MainMenuState {
 
 pub enum GameState {
     MainMenu(MainMenuState),
-    InGame(chess::GameState, graphics::GfxState),
+    SinglePlayer(chess::GameState, graphics::GfxState),
     MultiplayerSession(MPState)
 }
 
@@ -80,8 +80,8 @@ impl GameState {
     }
 
     fn swap_to_in_game(&mut self, mut game : chess::GameState) {
-        let gfx_state = graphics::GfxState::init(&mut game, false);
-        *self = GameState::InGame(game, gfx_state);
+        let gfx_state = graphics::GfxState::init(&mut game, None);
+        *self = GameState::SinglePlayer(game, gfx_state);
     }
 
     fn swap_to_mm(&mut self) {
@@ -144,7 +144,7 @@ fn game_loop(game_state : &mut GameState) {
                 }
             }
         }
-        GameState::InGame(game, gfx_state) => {
+        GameState::SinglePlayer(game, gfx_state) => {
             let player_input = gfx_state.draw(game);
             if let Some(pl_input) = player_input {
                 match pl_input {
