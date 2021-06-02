@@ -62,25 +62,27 @@ fn parse_args(args: Vec<String>) -> Args {
 }
 
 pub enum MainMenuState {
-    Main{ ip_string : String },
-    PlayMenu{ fen_string: String },
-    OptionsMenu
+    Main { ip_string: String },
+    PlayMenu { fen_string: String },
+    OptionsMenu,
 }
 
 pub enum GameState {
     MainMenu(MainMenuState),
     SinglePlayer(chess::GameState, graphics::GfxState),
-    MultiplayerSession(MPState)
+    MultiplayerSession(MPState),
 }
 
 impl GameState {
     //called every time game state is switched
 
     fn init_mm() -> GameState {
-        GameState::MainMenu(MainMenuState::Main{ip_string:"cryptic-savannah-25003.herokuapp.com:80".to_string()})
+        GameState::MainMenu(MainMenuState::Main {
+            ip_string: "cryptic-savannah-25003.herokuapp.com:80".to_string(),
+        })
     }
 
-    fn swap_to_in_game(&mut self, mut game : chess::GameState) {
+    fn swap_to_in_game(&mut self, mut game: chess::GameState) {
         let gfx_state = graphics::GfxState::init(&mut game, None);
         *self = GameState::SinglePlayer(game, gfx_state);
     }
@@ -121,30 +123,24 @@ pub enum MenuChange {
     Menu(MainMenuState),
     Game(chess::GameState),
     MultiplayerGame(MPState),
-    None
+    None,
 }
 
 // async fn game_loop(game: &mut GameState, gfx_state: &mut graphics::GfxState) {
-fn game_loop(game_state : &mut GameState) {
-
+fn game_loop(game_state: &mut GameState) {
     match game_state {
-        GameState::MainMenu(mm_s) => {
-
-            match graphics::draw_main_menu(mm_s) {
-                MenuChange::Menu(menu) => {
-                    *game_state = GameState::MainMenu(menu);
-                }
-                MenuChange::Game(gs) => {
-                    game_state.swap_to_in_game(gs);
-                }
-                MenuChange::MultiplayerGame(mp_state) => {
-                    game_state.swap_to_multiplayer(mp_state);
-                }
-                MenuChange::None => {
-
-                }
+        GameState::MainMenu(mm_s) => match graphics::draw_main_menu(mm_s) {
+            MenuChange::Menu(menu) => {
+                *game_state = GameState::MainMenu(menu);
             }
-        }
+            MenuChange::Game(gs) => {
+                game_state.swap_to_in_game(gs);
+            }
+            MenuChange::MultiplayerGame(mp_state) => {
+                game_state.swap_to_multiplayer(mp_state);
+            }
+            MenuChange::None => {}
+        },
         GameState::SinglePlayer(game, gfx_state) => {
             let player_input = gfx_state.draw(game);
             if let Some(pl_input) = player_input {
@@ -157,7 +153,7 @@ fn game_loop(game_state : &mut GameState) {
                         // if u are the client u send the move to the server and stuff
                         // let move_res = game.perform_move(chess_move);
                         // if let Ok(()) = move_res {
-                            // gfx_state.move_was_made(game);
+                        // gfx_state.move_was_made(game);
                         // }
                     }
                 }
@@ -170,5 +166,4 @@ fn game_loop(game_state : &mut GameState) {
             }
         }
     }
-
 }

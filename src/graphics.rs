@@ -2,14 +2,14 @@ use std::cmp;
 use std::convert::TryFrom;
 
 use chess::{
-    Board, ChessPiece, ChessTeam, Coord, GameEndState, GameState, Move, MoveError, Tile, self
+    self, Board, ChessPiece, ChessTeam, Coord, GameEndState, GameState, Move, MoveError, Tile,
 };
 
-use crate::{MenuChange};
+use crate::MenuChange;
 use egui::CtxRef;
+use futures::executor::block_on;
 use macroquad::input;
 use macroquad::prelude::*;
-use futures::executor::block_on;
 
 use macroquad::ui::{
     hash,
@@ -18,10 +18,8 @@ use macroquad::ui::{
     Skin, // Drag, Ui,
 };
 
+use crate::multiplayer::MPState;
 use crate::MainMenuState;
-use crate::multiplayer::{
-    MPState
-};
 
 // player input that code outside graphics may be interested in.
 // input is caught by this graphics module but it won't try to modify the game state
@@ -31,7 +29,6 @@ pub enum PlayerInput {
     GoBack,
     Move(Move, Result<(), MoveError>),
 }
-
 
 // use crate::GameState as ProgramState;
 
@@ -189,7 +186,7 @@ pub struct GfxState {
     //is board flipped (white or black perspective)
     is_board_flipped: bool,
 
-    locked_team: Option<ChessTeam>
+    locked_team: Option<ChessTeam>,
 }
 
 fn get_board_coord(tile: Tile) -> Coord {
@@ -260,7 +257,7 @@ impl GfxState {
                 ChessTeam::White => {
                     locked_team = Some(ChessTeam::Black);
                 }
-            } 
+            }
         }
 
         let mut state = GfxState {
@@ -282,14 +279,14 @@ impl GfxState {
             skin1,
             moves_str: vec![],
             is_board_flipped,
-            locked_team
+            locked_team,
         };
 
         state.sync_board(&mut game.get_board());
 
         state
     }
-    
+
     pub fn set_team_lock(&mut self, team: Option<ChessTeam>) {
         self.locked_team = team;
     }
@@ -308,7 +305,6 @@ impl GfxState {
     }
 
     fn get_coord_col(&self, coord: Coord) -> ColBox {
-
         if self.is_board_flipped {
             ColBox {
                 x: self.board_col.x + (self.board_col.w / 8.0) * (7 - coord.x) as f32,
@@ -335,7 +331,7 @@ impl GfxState {
                 Coord::from(tile),
                 piece.0,
                 piece.1,
-                self.is_board_flipped
+                self.is_board_flipped,
             ));
         }
     }
@@ -498,7 +494,6 @@ impl GfxState {
     }
 
     fn draw_moves_ui(&mut self, game: &mut GameState, egui_ctx: &CtxRef) {
-
         // TODO(lucypero): this is crashing the game when you promote a pawn..
 
         const MOVE_NO_W: f32 = 30.;
@@ -507,35 +502,40 @@ impl GfxState {
         let move_count = game.move_count();
 
         egui::Window::new("Moves")
-            // .anchor(egui::Align2::LEFT_TOP, 
+            // .anchor(egui::Align2::LEFT_TOP,
             //     egui::vec2(
             //         PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
             //         BOARD_PADDING as f32,
             //     ))
             // .fixed_size(egui::vec2(MOVES_LIST_WIDTH as f32 + 2000.,
             //         PIECE_DISPLAY_SIZE as f32 * 8.))
-            .fixed_pos(egui::pos2(PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
-                    BOARD_PADDING as f32))
+            .fixed_pos(egui::pos2(
+                PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
+                BOARD_PADDING as f32,
+            ))
             .resizable(false)
             .title_bar(false)
             .show(egui_ctx, |ui| {
-
-                ui.set_min_size(egui::vec2(MOVES_LIST_WIDTH as f32,
-                                    PIECE_DISPLAY_SIZE as f32 * 8.));
+                ui.set_min_size(egui::vec2(
+                    MOVES_LIST_WIDTH as f32,
+                    PIECE_DISPLAY_SIZE as f32 * 8.,
+                ));
 
                 egui::Grid::new("my_grid")
                     .striped(true)
                     // .min_col_width(self.min_col_width)
                     // .max_col_width(self.max_col_width)
                     .show(ui, |ui| {
-
                         for i in 1..=group_count {
                             ui.label(&format!("{}", i));
                             for j in 0..=1 {
                                 let move_i = (i as i32 * 2 + (j as i32 - 1)) as usize - 1;
-                                if move_count > move_i &&
-                                    ui.add(egui::Button::new(self.moves_str[move_i].as_str())).clicked() {
-                                        self.show_move(game, move_i + 1);
+                                if move_count > move_i
+                                    && ui
+                                        .add(egui::Button::new(self.moves_str[move_i].as_str()))
+                                        .clicked()
+                                {
+                                    self.show_move(game, move_i + 1);
                                 }
                             }
                             ui.end_row();
@@ -597,32 +597,28 @@ impl GfxState {
             if self.is_board_flipped {
                 draw_circle(
                     self.board_col.x
-                    + (self.board_col.w / 8.0 / 2.0)
-                    + (7 - coord.x) as f32 * (self.board_col.w / 8.0),
+                        + (self.board_col.w / 8.0 / 2.0)
+                        + (7 - coord.x) as f32 * (self.board_col.w / 8.0),
                     self.board_col.y
-                    + (self.board_col.h / 8.0 / 2.0)
-                    + (coord.y) as f32 * (self.board_col.h / 8.0),
+                        + (self.board_col.h / 8.0 / 2.0)
+                        + (coord.y) as f32 * (self.board_col.h / 8.0),
                     12.0,
                     HIGHLIGHT_COLOR,
                 );
-            }
-            else {
+            } else {
                 draw_circle(
                     self.board_col.x
-                    + (self.board_col.w / 8.0 / 2.0)
-                    + coord.x as f32 * (self.board_col.w / 8.0),
+                        + (self.board_col.w / 8.0 / 2.0)
+                        + coord.x as f32 * (self.board_col.w / 8.0),
                     self.board_col.y
-                    + (self.board_col.h / 8.0 / 2.0)
-                    + (7 - coord.y) as f32 * (self.board_col.h / 8.0),
+                        + (self.board_col.h / 8.0 / 2.0)
+                        + (7 - coord.y) as f32 * (self.board_col.h / 8.0),
                     12.0,
                     HIGHLIGHT_COLOR,
                 );
             }
-
-
         }
     }
-
 
     fn keys_swap_textures(&mut self) {
         if input::is_key_pressed(KeyCode::B) {
@@ -649,10 +645,7 @@ impl GfxState {
 
     fn draw_board(&self) {
         let board_params = DrawTextureParams {
-            dest_size: Some(vec2 (
-                               self.board_col.w,
-                               self.board_col.h
-                       )),
+            dest_size: Some(vec2(self.board_col.w, self.board_col.h)),
             source: None,
             rotation: 0.0,
             flip_x: false,
@@ -684,7 +677,6 @@ impl GfxState {
     }
 
     pub fn draw(&mut self, game: &mut GameState) -> Option<PlayerInput> {
-
         let mut res = None;
 
         clear_background(BACKGROUND_COLOR);
@@ -692,7 +684,7 @@ impl GfxState {
         if input::is_key_pressed(KeyCode::F) {
             println!("fen output: {}", game.get_fen());
         }
-        
+
         if input::is_key_pressed(KeyCode::Backspace) {
             res = Some(PlayerInput::GoBack);
         }
@@ -802,16 +794,21 @@ impl GfxState {
             let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
             if self.board_col.is_in_box(mouse_vec) {
                 //get tile where the mouse was in
-                let coord_x = std::cmp::min((((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as u32, 7) as i32;
-                let coord_y = std::cmp::min((((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as u32, 7) as i32;
+                let coord_x = std::cmp::min(
+                    (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as u32,
+                    7,
+                ) as i32;
+                let coord_y = std::cmp::min(
+                    (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as u32,
+                    7,
+                ) as i32;
                 let board_coord;
                 if self.is_board_flipped {
                     board_coord = Coord {
                         x: 7 - coord_x,
                         y: coord_y,
                     };
-                }
-                else {
+                } else {
                     board_coord = Coord {
                         x: coord_x,
                         y: 7 - coord_y,
@@ -820,7 +817,6 @@ impl GfxState {
 
                 let the_move = self.construct_move(self.dragged_piece_i, board_coord, game);
                 if let Ok(the_move) = the_move {
-
                     let move_res = game.perform_move(the_move);
 
                     if move_res.is_ok() {
@@ -832,7 +828,6 @@ impl GfxState {
 
                     res = Some(PlayerInput::Move(the_move, move_res));
                 }
-
 
                 // let res = self.attempt_move_execution(self.dragged_piece_i, board_coord, game);
 
@@ -870,7 +865,6 @@ impl GfxState {
                             continue;
                         }
                     }
-
 
                     self.is_dragged = true;
 
@@ -914,8 +908,14 @@ impl GfxState {
             //frame the tile on hover
             if self.board_col.is_in_box(mouse_vec) {
                 //get tile where the mouse was in
-                let coord_x = std::cmp::min((((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32, 7);
-                let coord_y = std::cmp::min((((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32, 7);
+                let coord_x = std::cmp::min(
+                    (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32,
+                    7,
+                );
+                let coord_y = std::cmp::min(
+                    (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32,
+                    7,
+                );
                 let board_coord = Coord {
                     x: coord_x,
                     y: 7 - coord_y,
@@ -1008,24 +1008,22 @@ impl GfxState {
         for arrow in &self.arrows {
             match arrow {
                 Arrow::Arrow(coord_from_orig, coord_to_orig) => {
-
                     let coord_from: Coord;
                     let coord_to: Coord;
 
                     if self.is_board_flipped {
                         coord_from = Coord {
                             x: 7 - coord_from_orig.x,
-                            y: 7 - coord_from_orig.y
+                            y: 7 - coord_from_orig.y,
                         };
                         coord_to = Coord {
                             x: 7 - coord_to_orig.x,
-                            y: 7 - coord_to_orig.y
+                            y: 7 - coord_to_orig.y,
                         };
                     } else {
                         coord_from = *coord_from_orig;
                         coord_to = *coord_to_orig;
                     }
-
 
                     let t = 10.0; //stem thiccness
                     let t_offset;
@@ -1033,28 +1031,28 @@ impl GfxState {
                     // y goes top bottom
                     if coord_to.x > coord_from.x && coord_to.y > coord_from.y {
                         // arrow -> top right
-                        t_offset = vec2(-1.0,0.0).normalize();
+                        t_offset = vec2(-1.0, 0.0).normalize();
                     } else if coord_to.x > coord_from.x && coord_to.y < coord_from.y {
                         // arrow -> bottom right
-                        t_offset = vec2(0.0,-1.0).normalize();
+                        t_offset = vec2(0.0, -1.0).normalize();
                     } else if coord_to.x > coord_from.x && coord_to.y == coord_to.y {
                         // arrow -> right
-                        t_offset = vec2(-1.0,-1.0).normalize();
+                        t_offset = vec2(-1.0, -1.0).normalize();
                     } else if coord_to.x < coord_from.x && coord_to.y > coord_from.y {
                         // arrow -> top left
-                        t_offset = vec2(0.0,1.0).normalize();
+                        t_offset = vec2(0.0, 1.0).normalize();
                     } else if coord_to.x < coord_from.x && coord_to.y < coord_from.y {
                         // arrow -> bottom left
-                        t_offset = vec2(1.0,0.0).normalize();
+                        t_offset = vec2(1.0, 0.0).normalize();
                     } else if coord_to.x == coord_from.x && coord_to.y > coord_from.y {
                         // arrow -> up
-                        t_offset = vec2(-1.0,1.0).normalize();
+                        t_offset = vec2(-1.0, 1.0).normalize();
                     } else if coord_to.x == coord_from.x && coord_to.y < coord_from.y {
                         // arrow -> down
-                        t_offset = vec2(1.0,-1.0).normalize();
+                        t_offset = vec2(1.0, -1.0).normalize();
                     } else {
                         //arrow -> left
-                        t_offset = vec2(1.0,1.0).normalize();
+                        t_offset = vec2(1.0, 1.0).normalize();
                     }
 
                     let tile_w = self.board_col.w / 8.0;
@@ -1072,7 +1070,7 @@ impl GfxState {
                             self.board_col.y
                                 + tile_w / 2.0
                                 + tile_w * (7 - coord_from.y) as f32
-                                + t_offset.y * t
+                                + t_offset.y * t,
                         ),
                         vec2(
                             self.board_col.x
@@ -1082,7 +1080,7 @@ impl GfxState {
                             self.board_col.y
                                 + tile_w / 2.0
                                 + tile_w * (7 - coord_to.y) as f32
-                                + t_offset.y * t
+                                + t_offset.y * t,
                         ),
                         vec2(
                             self.board_col.x
@@ -1090,79 +1088,77 @@ impl GfxState {
                                 + tile_w * coord_to.x as f32
                                 + t_offset.y * t,
                             self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                                - t_offset.x * t
+                                - t_offset.x * t,
                         ),
                         HIGHLIGHT_COLOR,
                     );
                     draw_triangle(
-                        vec2 (
+                        vec2(
                             self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_from.x as f32
-                            + t_offset.x * t,
+                                + tile_w / 2.0
+                                + tile_w * coord_from.x as f32
+                                + t_offset.x * t,
                             self.board_col.y
-                            + tile_w / 2.0
-                            + tile_w * (7 - coord_from.y) as f32
-                            + t_offset.y * t
+                                + tile_w / 2.0
+                                + tile_w * (7 - coord_from.y) as f32
+                                + t_offset.y * t,
                         ),
-                        vec2 (
+                        vec2(
                             self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_from.x as f32
-                            + t_offset.y * t,
+                                + tile_w / 2.0
+                                + tile_w * coord_from.x as f32
+                                + t_offset.y * t,
                             self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32
-                            - t_offset.x * t
+                                - t_offset.x * t,
                         ),
-                        vec2 (
+                        vec2(
                             self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_to.x as f32
-                            + t_offset.y * t,
+                                + tile_w / 2.0
+                                + tile_w * coord_to.x as f32
+                                + t_offset.y * t,
                             self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                            - t_offset.x * t
+                                - t_offset.x * t,
                         ),
                         HIGHLIGHT_COLOR,
                     );
                     // the tip
                     draw_triangle(
-                        vec2 (
+                        vec2(
                             self.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32,
                         ),
-                        vec2 (
+                        vec2(
                             self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_to.x as f32
-                            + t_offset.x * t,
+                                + tile_w / 2.0
+                                + tile_w * coord_to.x as f32
+                                + t_offset.x * t,
                             self.board_col.y
-                            + tile_w / 2.0
-                            + tile_w * (7 - coord_to.y) as f32
-                            + t_offset.y * t
+                                + tile_w / 2.0
+                                + tile_w * (7 - coord_to.y) as f32
+                                + t_offset.y * t,
                         ),
-                        vec2 (
+                        vec2(
                             self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_to.x as f32
-                            + t_offset.y * t,
+                                + tile_w / 2.0
+                                + tile_w * coord_to.x as f32
+                                + t_offset.y * t,
                             self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                            - t_offset.x * t
+                                - t_offset.x * t,
                         ),
                         HIGHLIGHT_COLOR,
                     );
                 }
                 Arrow::Circle(coord_orig) => {
-
                     let coord: Coord;
 
                     if self.is_board_flipped {
                         coord = Coord {
                             x: 7 - coord_orig.x,
-                            y: 7 - coord_orig.y
+                            y: 7 - coord_orig.y,
                         };
                     } else {
                         coord = *coord_orig;
                     }
-
 
                     draw_rectangle(
                         self.board_col.x + (self.board_col.w / 8.0) * coord.x as f32,
@@ -1213,11 +1209,17 @@ struct Piece {
     pos: Coord,
     team: ChessTeam,
     piece_type: ChessPiece,
-    flipped_board: bool
+    flipped_board: bool,
 }
 
 impl Piece {
-    fn init(board_col: &ColBox, pos: Coord, team: ChessTeam, piece_type: ChessPiece, flipped_board: bool) -> Piece {
+    fn init(
+        board_col: &ColBox,
+        pos: Coord,
+        team: ChessTeam,
+        piece_type: ChessPiece,
+        flipped_board: bool,
+    ) -> Piece {
         let mut piece = Piece {
             col: ColBox {
                 x: 0.0,
@@ -1228,7 +1230,7 @@ impl Piece {
             pos,
             team,
             piece_type,
-            flipped_board
+            flipped_board,
         };
         piece.update_col(board_col);
         piece
@@ -1243,8 +1245,7 @@ impl Piece {
         if self.flipped_board {
             self.col.x = (board_col.w / 8.0) * (7 - self.pos.x) as f32 + board_col.x;
             self.col.y = (board_col.h / 8.0) * (self.pos.y) as f32 + board_col.y;
-        }
-        else {
+        } else {
             self.col.x = (board_col.w / 8.0) * (self.pos.x) as f32 + board_col.x;
             self.col.y = (board_col.h / 8.0) * (7 - self.pos.y) as f32 + board_col.y;
         }
@@ -1269,10 +1270,7 @@ impl Piece {
             };
 
             params = DrawTextureParams {
-                dest_size: Some(vec2 (
-                                   self.col.w,
-                                   self.col.h
-                           )),
+                dest_size: Some(vec2(self.col.w, self.col.h)),
                 source: Some(Rect {
                     x: 256.0 * atlas_pos_x as f32,
                     y: 256.0 * atlas_pos_y as f32,
@@ -1300,10 +1298,7 @@ impl Piece {
             };
 
             params = DrawTextureParams {
-                dest_size: Some(vec2 (
-                                   self.col.w,
-                                   self.col.h
-                           )),
+                dest_size: Some(vec2(self.col.w, self.col.h)),
                 source: Some(Rect {
                     x: 128.0 * atlas_pos_x as f32,
                     y: 128.0 * atlas_pos_y as f32,
@@ -1329,13 +1324,8 @@ impl Piece {
                 atlas_pos_x += 6;
             }
 
-
-
             params = DrawTextureParams {
-                dest_size: Some(vec2 (
-                                   self.col.w,
-                                   self.col.h
-                           )),
+                dest_size: Some(vec2(self.col.w, self.col.h)),
                 source: Some(Rect {
                     x: 150.0 * atlas_pos_x as f32,
                     y: 0.0,
@@ -1354,7 +1344,6 @@ impl Piece {
 }
 
 pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
-
     let mut play_button_clicked = false;
     let mut play_fen_clicked = false;
 
@@ -1365,39 +1354,38 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
 
     clear_background(BACKGROUND_COLOR);
 
-    egui_macroquad::ui(|egui_ctx| {
-        match mm_state {
-            MainMenuState::Main{ip_string} => {
-                egui::Window::new("Main Menu!")
-                    .show(egui_ctx, |ui| {
-                        if ui.add(egui::Button::new("Play against yourself")).clicked() {
-                            res = MenuChange::Menu(MainMenuState::PlayMenu{fen_string: String::new()});
-                        }
-                        ui.add(egui::TextEdit::singleline(ip_string));
-                        if ui.add(egui::Button::new("Play online (host)")).clicked() {
-                            play_host_clicked = true;
-                        }
-                        if ui.add(egui::Button::new("Play online (client)")).clicked() {
-                            play_client_clicked = true;
-                        }
+    egui_macroquad::ui(|egui_ctx| match mm_state {
+        MainMenuState::Main { ip_string } => {
+            egui::Window::new("Main Menu!").show(egui_ctx, |ui| {
+                if ui.add(egui::Button::new("Play against yourself")).clicked() {
+                    res = MenuChange::Menu(MainMenuState::PlayMenu {
+                        fen_string: String::new(),
                     });
-            }
-            MainMenuState::PlayMenu{fen_string} => {
-                egui::Window::new("Play")
-                    .show(egui_ctx, |ui| {
-                        if ui.add(egui::Button::new("Play normal game")).clicked() {
-                            play_button_clicked = true;
-                        }
-                        ui.add(egui::TextEdit::singleline(fen_string));
-                        if ui.add(egui::Button::new("Play from FEN position")).clicked() {
-                            play_fen_clicked = true;
-                        }
-                    });
-            }
-            MainMenuState::OptionsMenu => {
-
-            }
+                }
+                ui.add(egui::TextEdit::singleline(ip_string));
+                if ui.add(egui::Button::new("Play online (host)")).clicked() {
+                    play_host_clicked = true;
+                }
+                if ui.add(egui::Button::new("Play online (client)")).clicked() {
+                    play_client_clicked = true;
+                }
+            });
         }
+        MainMenuState::PlayMenu { fen_string } => {
+            egui::Window::new("Play").show(egui_ctx, |ui| {
+                if ui.add(egui::Button::new("Play normal game")).clicked() {
+                    play_button_clicked = true;
+                }
+                ui.add(egui::TextEdit::singleline(fen_string));
+                if ui
+                    .add(egui::Button::new("Play from FEN position"))
+                    .clicked()
+                {
+                    play_fen_clicked = true;
+                }
+            });
+        }
+        MainMenuState::OptionsMenu => {}
     });
 
     egui_macroquad::draw();
@@ -1405,19 +1393,19 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
     if play_button_clicked {
         res = MenuChange::Game(GameState::init());
     } else if play_fen_clicked {
-        if let MainMenuState::PlayMenu{fen_string} = mm_state {
+        if let MainMenuState::PlayMenu { fen_string } = mm_state {
             let game = chess::parse_fen(fen_string.to_string());
             if let Some(game) = game {
                 res = MenuChange::Game(game);
             }
         }
     } else if play_host_clicked {
-        if let MainMenuState::Main{ip_string} = mm_state {
+        if let MainMenuState::Main { ip_string } = mm_state {
             let mp_state = MPState::init(ip_string.clone());
             res = MenuChange::MultiplayerGame(mp_state);
         }
     } else if play_client_clicked {
-        if let MainMenuState::Main{ip_string} = mm_state {
+        if let MainMenuState::Main { ip_string } = mm_state {
             let mp_state = MPState::init(ip_string.clone());
             res = MenuChange::MultiplayerGame(mp_state);
         }

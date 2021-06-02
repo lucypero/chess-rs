@@ -2,14 +2,13 @@
 #![warn(rust_2018_idioms)]
 #![allow(dead_code)]
 
-
 pub mod move_parser;
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
 use std::ops;
-use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ChessTeam {
@@ -272,7 +271,7 @@ impl ops::Mul<i32> for Coord {
 
 impl Coord {
     pub fn get_file_char(&self) -> char {
-        return match self.x {
+        match self.x {
             0 => 'a',
             1 => 'b',
             2 => 'c',
@@ -282,7 +281,7 @@ impl Coord {
             6 => 'g',
             7 => 'h',
             _ => panic!(),
-        };
+        }
     }
 
     pub fn get_rank_char(&self) -> char {
@@ -641,7 +640,7 @@ impl GameState {
             for chess_move in self.moves.iter() {
                 board.apply_move(*chess_move);
             }
-            self.cached_current_board = Some(board.clone());
+            self.cached_current_board = Some(board);
         }
 
         self.cached_current_board.as_ref().unwrap()
@@ -866,8 +865,7 @@ impl GameState {
     }
 
     fn get_full_move_count(&self) -> u32 {
-
-        // basically we have to figure out how many times 
+        // basically we have to figure out how many times
         //    black moved and add it to self.starting_move_count
 
         // answer : if white starts first, number of black moves is moves / 2 (round down)
@@ -878,7 +876,7 @@ impl GameState {
 
         let added_moves = match starting_team {
             ChessTeam::Black => (move_count + 1) / 2,
-            ChessTeam::White => move_count / 2
+            ChessTeam::White => move_count / 2,
         };
 
         self.starting_move_count + added_moves
@@ -940,8 +938,8 @@ impl GameState {
                     //take out the piece that made the move
                     pieces.retain(|p| *p != coord_from);
 
-                    if pieces.len() == 0 {
-                        piece_str.to_string() + capture_str + tile_to_str
+                    if pieces.is_empty() {
+                        piece_str + capture_str + tile_to_str
                     } else {
                         let mut unique_file = true;
                         let mut unique_rank = true;
@@ -1015,10 +1013,8 @@ impl GameState {
         //if last move and end game is checkmate, then move is checkmate
         if move_i == self.move_count() - 1 && self.get_end_state() == GameEndState::Checkmate {
             final_move_str += "#";
-        } else {
-            if board.is_team_in_check(board.whose_turn, None) {
-                final_move_str += "+";
-            }
+        } else if board.is_team_in_check(board.whose_turn, None) {
+            final_move_str += "+";
         }
         final_move_str
     }
@@ -1029,9 +1025,8 @@ impl GameState {
     }
 
     pub fn get_fen(&mut self) -> String {
-
         let mut res = String::new();
-        
+
         let board = self.get_board();
 
         //rank (0 to 7)
@@ -1039,7 +1034,7 @@ impl GameState {
             //file (7 to 0)
             let mut empty_tiles = 0;
             for f in 0..=7 {
-                let coord = Coord{x:f, y:r};
+                let coord = Coord { x: f, y: r };
                 let tile = Tile::try_from(coord).unwrap();
                 if let Some(tp) = board.get_piece(tile) {
                     if empty_tiles > 0 {
@@ -1065,7 +1060,7 @@ impl GameState {
                     res.push(p_c);
                     empty_tiles = 0;
                 } else {
-                    empty_tiles+=1;
+                    empty_tiles += 1;
                 }
             }
 
@@ -1085,7 +1080,7 @@ impl GameState {
         res.push(' ');
         res.push(match board.whose_turn {
             ChessTeam::Black => 'b',
-            ChessTeam::White => 'w'
+            ChessTeam::White => 'w',
         });
 
         //castling
@@ -1102,7 +1097,7 @@ impl GameState {
         if board.castling_rights.3 {
             res.push('q');
         }
-        if board.castling_rights == (false,false,false,false) {
+        if board.castling_rights == (false, false, false, false) {
             res.push('-');
         }
 
@@ -1666,31 +1661,19 @@ pub fn is_piece_move_legal(
         }
         TeamedChessPiece(_, ChessPiece::Rook) => {
             let magn = coord_distance.magnitude();
-
-            //check movement
-            !(magn.is_none() ||
-            //line has to be a horizontal or vertical line
-              (!(coord_distance.x == 0 || coord_distance.y == 0)) ||
-            //check if there is a friendly piece in the way
-              (!board.is_path_clear(piece, tile_from, tile_to)))
+            (coord_distance.y == 0 || coord_distance.x == 0)
+                && board.is_path_clear(piece, tile_from, tile_to)
+                && magn.is_some()
         }
         TeamedChessPiece(_, ChessPiece::Bishop) => {
             let magn = coord_distance.magnitude();
-
-            //check movement
-            !(magn.is_none() ||
-            //line has to be a diagonal
-               (coord_distance.x.abs() != coord_distance.y.abs()) ||
-            //check if there is a friendly piece in the way
-               (!board.is_path_clear(piece, tile_from, tile_to)))
+            magn.is_some()
+                && coord_distance.x.abs() == coord_distance.y.abs()
+                && board.is_path_clear(piece, tile_from, tile_to)
         }
         TeamedChessPiece(_, ChessPiece::Queen) => {
             let magn = coord_distance.magnitude();
-
-            //check movement
-            !(magn.is_none() ||
-            //check if there is a friendly piece in the way
-              (!board.is_path_clear(piece, tile_from, tile_to)))
+            magn.is_some() && board.is_path_clear(piece, tile_from, tile_to)
         }
         TeamedChessPiece(_, ChessPiece::Knight) => {
             //checking if the move is an L
@@ -2329,7 +2312,6 @@ impl Board {
 
         false
     }
-
 }
 
 pub fn parse_fen(fen: String) -> Option<GameState> {
@@ -2376,7 +2358,7 @@ pub fn parse_fen(fen: String) -> Option<GameState> {
 
             rank -= 1;
             file = 0;
-        } else if c >= '1' && c <= '8' {
+        } else if ('1'..='8').contains(&c) {
             //get number
             let n = c.to_digit(10)?;
             file += n as i32;

@@ -132,7 +132,7 @@ fn parse_pawn_capture(
     input: &[char],
     i: &mut usize,
     could_be_something_else: &mut bool,
-) -> Result<Vec<Node>, ()> {
+) -> Result<Vec<Node>, ParseError> {
     let mut result: Vec<Node> = vec![];
     let mut j = *i;
 
@@ -162,7 +162,7 @@ fn parse_pawn_capture(
 
             //if there is a tile ahead, this is not a pawn capture
             if is_there_tile_ahead(input, j) {
-                return Err(());
+                return Err(ParseError);
             }
 
             result.push(Node::Destination(char_ahead, rank));
@@ -171,11 +171,11 @@ fn parse_pawn_capture(
             return Ok(result);
         }
     }
-    Err(())
+    Err(ParseError)
 }
 
 // returns Err if found no piece. parsing could still succeed because this is optional
-fn parse_piece(input: &[char], i: &mut usize) -> Result<Node, ()> {
+fn parse_piece(input: &[char], i: &mut usize) -> Result<Node, ParseError> {
     // -> look ahead, if rank
     //     -> look ahead, if there is tile anywhere:
     //        -> then piece = piece_type rank
@@ -197,7 +197,7 @@ fn parse_piece(input: &[char], i: &mut usize) -> Result<Node, ()> {
                 *i += 2;
                 return Ok(Node::Piece(name, '-', char_ahead));
             } else {
-                return Err(());
+                return Err(ParseError);
             }
         } else if is_file(char_ahead) {
             let char_ahead_ahead = safe_index(input, *i + 2)?;
@@ -218,31 +218,31 @@ fn parse_piece(input: &[char], i: &mut usize) -> Result<Node, ()> {
         }
     }
 
-    Err(())
+    Err(ParseError)
 }
 
-fn parse_captures(input: &[char], i: &mut usize) -> Result<Node, ()> {
+fn parse_captures(input: &[char], i: &mut usize) -> Result<Node, ParseError> {
     if input[*i] == 'x' {
         *i += 1;
         Ok(Node::Captures)
     } else {
-        Err(())
+        Err(ParseError)
     }
 }
 
-fn parse_en_passant(input: &[char], i: &mut usize) -> Result<Node, ()> {
+fn parse_en_passant(input: &[char], i: &mut usize) -> Result<Node, ParseError> {
     if safe_index(input, *i + 3).is_ok() && input[*i..=*i + 3].iter().collect::<String>() == "e.p."
     {
         *i += 4;
         return Ok(Node::EnPassant);
     }
 
-    Err(())
+    Err(ParseError)
 }
 
-fn parse_check_or_mate(input: &[char], i: &mut usize) -> Result<Node, ()> {
+fn parse_check_or_mate(input: &[char], i: &mut usize) -> Result<Node, ParseError> {
     if safe_index(input, *i).is_err() {
-        return Err(());
+        return Err(ParseError);
     }
 
     if input[*i] == '#' {
@@ -252,7 +252,7 @@ fn parse_check_or_mate(input: &[char], i: &mut usize) -> Result<Node, ()> {
         *i += 1;
         Ok(Node::Check)
     } else {
-        Err(())
+        Err(ParseError)
     }
 }
 
@@ -269,7 +269,7 @@ fn is_chess_piece(c: char) -> bool {
         || c == 'Q'
 }
 
-fn parse_pawn_promotion(input: &[char], i: &mut usize) -> Result<Node, ()> {
+fn parse_pawn_promotion(input: &[char], i: &mut usize) -> Result<Node, ParseError> {
     let mut j = *i;
     let mut char_next = safe_index(input, j)?;
 
@@ -284,10 +284,10 @@ fn parse_pawn_promotion(input: &[char], i: &mut usize) -> Result<Node, ()> {
         *i = j;
         return Ok(Node::PawnPromotion(char_next));
     }
-    Err(())
+    Err(ParseError)
 }
 
-fn parse_castle(input: &[char], i: &mut usize) -> Result<Node, ()> {
+fn parse_castle(input: &[char], i: &mut usize) -> Result<Node, ParseError> {
     let input_string: String = input.iter().collect();
     if input_string.starts_with("o-o") || input_string.starts_with("O-O") {
         if input_string.starts_with("o-o-o") || input_string.starts_with("O-O-O") {
@@ -298,13 +298,16 @@ fn parse_castle(input: &[char], i: &mut usize) -> Result<Node, ()> {
             return Ok(Node::CastleShort);
         }
     }
-    Err(())
+    Err(ParseError)
 }
 
+#[derive(Debug)]
+pub struct ParseError;
+
 //Parses a string representing a chess move in FIDE move notation ("eg: Be4")
-// Returns a Vec<Node> representing the move. Err(()) if it could not be parsed
+// Returns a Vec<Node> representing the move. Err(ParseError) if it could not be parsed
 //recommended pre-processing of input: strip whitespace
-pub fn parse(input: Vec<char>) -> Result<Vec<Move>, ()> {
+pub fn parse(input: Vec<char>) -> Result<Vec<Move>, ParseError> {
     let mut results: Vec<Move> = vec![];
 
     let mut could_be_something_else = true;
@@ -376,15 +379,15 @@ fn is_rank(c: char) -> bool {
     ('1'..='8').contains(&c)
 }
 
-fn safe_index(vec: &[char], i: usize) -> Result<char, ()> {
+fn safe_index(vec: &[char], i: usize) -> Result<char, ParseError> {
     if i >= vec.len() {
-        Err(())
+        Err(ParseError)
     } else {
         Ok(vec[i])
     }
 }
 
-fn parse_destination(input: &[char], final_i: &mut usize) -> Result<Node, ()> {
+fn parse_destination(input: &[char], final_i: &mut usize) -> Result<Node, ParseError> {
     let i = *final_i;
 
     if is_file(input[i]) {
@@ -395,7 +398,7 @@ fn parse_destination(input: &[char], final_i: &mut usize) -> Result<Node, ()> {
         }
     }
 
-    Err(())
+    Err(ParseError)
 }
 
 #[cfg(test)]
