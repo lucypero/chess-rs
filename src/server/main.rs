@@ -5,6 +5,8 @@ use std::{net::{TcpListener, TcpStream}};
 use serde::{Serialize, Deserialize};
 use bincode::Options;
 use std::io::{self, Read, Write};
+use std::{thread};
+use std::sync::mpsc::{self, Sender, Receiver};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Message {
@@ -17,10 +19,95 @@ struct Match {
     game: chess::GameState,
 }
 
+fn make_match_thread(listener: TcpListener, tx: Sender<()>) {
+    thread::spawn( move || {
+        println!("Waiting for 2 clients to connect to start the game.");
+
+        let mut clients:Vec<TcpStream> = Vec::with_capacity(2);
+
+        // let listener = listener.try_clone().unwrap();
+
+        let mut client_count = 0;
+
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    println!("New connection: {}", stream.peer_addr().unwrap());
+                    stream.set_nonblocking(true).expect("set_nonblocking call failed");
+                    clients.push(stream);
+                    client_count += 1;
+
+                    if client_count == 2 {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    println!("error atconnecting {}", e);
+                    /* connection failed */
+                }
+            }
+        }
+
+        //found 2 clients. make another thread to wait for more clients.
+        tx.send(()).unwrap();
+
+
+        // TODO(lucypero): disconnect clients and kill thread if they don't respond quickly and properly
+
+
+        // create game
+
+        let _game = chess::GameState::init();
+        // let match = Match{clients: [clients[0], clients[1]], game};
+
+        let my_options = bincode::DefaultOptions::new()
+            .with_fixint_encoding()
+            .allow_trailing_bytes();
+
+        let msg = Message::GameStart(chess::ChessTeam::White);
+        let msg_e: Vec<u8> = my_options.serialize(&msg).unwrap();
+
+        //let them know
+        clients[0].write(&msg_e).unwrap();
+
+
+        let msg = Message::GameStart(chess::ChessTeam::Black);
+        let msg_e: Vec<u8> = my_options.serialize(&msg).unwrap();
+
+        clients[1].write(&msg_e).unwrap();
+
+
+        let message_size;
+        //this just calculates a move size
+        {
+            let the_move = chess::Move::PieceMove {
+                piece: chess::ChessPiece::Queen,
+                tile_from: chess::Tile::A1,
+                tile_to: chess::Tile::A2,
+                is_en_passant: false
+            };
+
+            let message = Message::Move(the_move);
+
+            let my_options = bincode::DefaultOptions::new()
+                .with_fixint_encoding()
+                .allow_trailing_bytes();
+
+            let move_encoded: Vec<u8> = my_options.serialize(&message).unwrap();
+            message_size = move_encoded.len();
+        }
+
+        //main loop
+        //waiting for messages
+        loop {
+            handle_message_recieved(&mut clients, 0, message_size);
+            handle_message_recieved(&mut clients, 1, message_size);
+        }
+    });
+}
+
 fn main() {
-
-    let mut clients:Vec<TcpStream> = Vec::with_capacity(2);
-
+    
     let port_no;
     if let Ok(port_var_res) = std::env::var("PORT") {
         port_no = port_var_res;
@@ -33,75 +120,17 @@ fn main() {
     let listener = TcpListener::bind(ip_str.as_str()).unwrap();
     println!("Server listening on port {}", port_no);
 
-    let mut client_count = 0;
+    let (tx, rx): (Sender<()>, Receiver<()>) = mpsc::channel();
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                println!("New connection: {}", stream.peer_addr().unwrap());
-                stream.set_nonblocking(true).expect("set_nonblocking call failed");
-                clients.push(stream);
-                client_count += 1;
+    make_match_thread(listener.try_clone().unwrap(), tx.clone());
 
-                if client_count == 2 {
-                    break;
-                }
-            }
-            Err(e) => {
-                println!("error atconnecting {}", e);
-                /* connection failed */
-            }
-        }
-    }
+    // loop {
+    //     thread::sleep(std::time::Duration::from_millis(1)); 
+    // }
 
-    // create game
-    
-    let game = chess::GameState::init();
-    // let match = Match{clients: [clients[0], clients[1]], game};
-
-    let my_options = bincode::DefaultOptions::new()
-        .with_fixint_encoding()
-        .allow_trailing_bytes();
-    
-    let msg = Message::GameStart(chess::ChessTeam::White);
-    let msg_e: Vec<u8> = my_options.serialize(&msg).unwrap();
-
-    //let them know
-    clients[0].write(&msg_e).unwrap();
-
-
-    let msg = Message::GameStart(chess::ChessTeam::Black);
-    let msg_e: Vec<u8> = my_options.serialize(&msg).unwrap();
-
-    clients[1].write(&msg_e).unwrap();
-
-
-    let message_size;
-    //this just calculates a move size
-    {
-        let the_move = chess::Move::PieceMove {
-            piece: chess::ChessPiece::Queen,
-            tile_from: chess::Tile::A1,
-            tile_to: chess::Tile::A2,
-            is_en_passant: false
-        };
-
-        let message = Message::Move(the_move);
-
-        let my_options = bincode::DefaultOptions::new()
-            .with_fixint_encoding()
-            .allow_trailing_bytes();
-
-        let move_encoded: Vec<u8> = my_options.serialize(&message).unwrap();
-        message_size = move_encoded.len();
-    }
-
-
-    //main loop
-    //waiting for messages
-    loop {
-        handle_message_recieved(&mut clients, 0, message_size);
-        handle_message_recieved(&mut clients, 1, message_size);
+    for _received in rx {
+        println!("waiting for more players...");
+        make_match_thread(listener.try_clone().unwrap(), tx.clone());
     }
 }
 
