@@ -4,18 +4,18 @@ mod move_parser_tests {
 
     use super::{parse, Move, MovePrimary};
 
-    fn test_moves(input: &str) -> Result<Vec<Move>, ()> {
+    fn test_moves(input: &str) -> Result<Vec<Move>, crate::move_parser::ParseError> {
         let mut input: String = input.to_string();
         input.retain(|c| !c.is_whitespace());
         return parse(input.chars().collect());
     }
 
     fn assert_move_vec_eq(ms: &str, mv: Move) {
-        assert_eq!(test_moves(ms), Ok(vec![mv]));
+        assert!(test_moves(ms).unwrap() == vec![mv]);
     }
 
     fn assert_move_mul_vec_eq(ms: &str, mv: Vec<Move>) {
-        assert_eq!(test_moves(ms), Ok(mv));
+        assert!(test_moves(ms).unwrap() == mv);
     }
 
     #[test]
