@@ -21,8 +21,17 @@ fn main() {
 
     let mut clients:Vec<TcpStream> = Vec::with_capacity(2);
 
-    let listener = TcpListener::bind("0.0.0.0:3333").unwrap();
-    println!("Server listening on port 3333");
+    let port_no;
+    if let Ok(port_var_res) = std::env::var("PORT") {
+        port_no = port_var_res;
+    } else {
+        port_no = "3333".to_string();
+    }
+
+    let ip_str = "0.0.0.0:".to_string() + &port_no;
+
+    let listener = TcpListener::bind(ip_str.as_str()).unwrap();
+    println!("Server listening on port {}", port_no);
 
     let mut client_count = 0;
 
