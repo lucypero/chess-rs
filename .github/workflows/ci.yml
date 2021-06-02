@@ -21,7 +21,7 @@ jobs:
       run: rustup default stable
 
     - name: Build
-      run: cargo build --bin chess-rs-server
+      run: cargo build --bin chess-rs-server --release
 
     - name: Run tests
       run: cargo test --verbose

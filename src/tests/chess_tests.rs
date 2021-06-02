@@ -1,4 +1,4 @@
-use crate::chess::*;
+use crate::*;
 
 mod fen_tests {
 
