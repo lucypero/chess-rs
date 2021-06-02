@@ -40,7 +40,7 @@ impl MPState {
         // }
 
 
-        let mut tcp_stream_op = None;
+        let tcp_stream_op;
 
         //gotta connect etc
         // side = Side::Client;
@@ -48,16 +48,15 @@ impl MPState {
         match TcpStream::connect(ip) {
             Ok(stream) => {
                 println!("Successfully connected to server in port 3333");
-                tcp_stream_op = Some(stream);
+                tcp_stream_op = stream;
             },
             Err(e) => {
                 panic!("error atconnecting {}", e);
             }
         }
 
-        let stream = tcp_stream_op.unwrap();
-        let mut stream1 = stream.try_clone().unwrap();
-        let mut stream2 = stream.try_clone().unwrap();
+        let mut stream1 = tcp_stream_op;
+        let mut stream2 = stream1.try_clone().unwrap();
 
         let (tx_send, rx_send): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
@@ -119,26 +118,14 @@ impl MPState {
             }
         });
 
-        // let team = if is_host {
-        //     ChessTeam::White
-        // } else {
-        //     ChessTeam::Black
-        // };
-
-        // gfx_state.set_team_lock(Some(team.the_other_one()));
-
-        //wait for game start
-
-
-
-        let mut team:Option<chess::ChessTeam> = None;
+        let team;
 
         loop {
             match rx_recv.recv() {
                 Ok(message) => {
                     match message {
                         Message::GameStart(the_team) => {
-                            team = Some(the_team);
+                            team = the_team;
                             println!("Game started!!! team is {:?}", team);
                             break;
                         }
@@ -153,19 +140,12 @@ impl MPState {
             }
         }
 
-        let team = team.unwrap();
-
         let gfx_state = GfxState::init(&mut game, Some(team));
 
         let game = chess::GameState::init();
 
         MPState{game, gfx_state, rx_recv, tx_send, team}
     }
-
-    // pub fn init_with_game(is_host: bool, mut game:GameState) -> MPState {
-    //     let gfx_state = GfxState::init(&mut game);
-    //     MPState{is_host, game, gfx_state}
-    // }
 
     fn send_move(&mut self, the_move: Move) {
         let message = Message::Move(the_move);

@@ -5,13 +5,9 @@
 
 pub mod move_parser;
 
-use ansi_term::Colour;
-use ansi_term::Style;
-use num_enum::TryFromPrimitive;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
-use std::io::{self, BufRead};
 use std::ops;
 use serde::{Serialize, Deserialize};
 
@@ -324,7 +320,7 @@ impl Coord {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct TeamedChessPiece(pub ChessTeam, pub ChessPiece);
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, TryFromPrimitive, Hash, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash, Copy, Clone)]
 #[repr(u32)]
 #[rustfmt::skip]
 pub enum Tile {
@@ -2334,136 +2330,6 @@ impl Board {
         false
     }
 
-    pub fn print(&self) {
-        println!();
-
-        //print 8 tiles then new line
-        for tile_num in 0..64u32 {
-            let tile = Tile::try_from(tile_num).unwrap();
-            let piece = self.get_piece(tile);
-            let bg_style = Style::new().on(Colour::RGB(215, 135, 0));
-
-            match piece {
-                Some(TeamedChessPiece(team, piece)) => {
-                    let used_style = match team {
-                        ChessTeam::White => bg_style.fg(Colour::White),
-                        ChessTeam::Black => bg_style.fg(Colour::Black),
-                    };
-
-                    match piece {
-                        ChessPiece::Pawn => print!("{}", used_style.paint("P")),
-                        ChessPiece::Rook => print!("{}", used_style.paint("R")),
-                        ChessPiece::Knight => print!("{}", used_style.paint("N")),
-                        ChessPiece::Bishop => print!("{}", used_style.paint("B")),
-                        ChessPiece::Queen => print!("{}", used_style.paint("Q")),
-                        ChessPiece::King => print!("{}", used_style.paint("K")),
-                    }
-                }
-                None => {
-                    print!("{}", bg_style.fg(Colour::RGB(178, 178, 178)).paint("-"));
-                }
-            }
-
-            if (tile_num + 1) % 8 == 0 {
-                println!();
-            }
-        }
-
-        println!();
-    }
-}
-
-// this is basically the terminal interface of the game
-fn game_cli_loop(game: &mut GameState) {
-    //read move from stdin, you write the move and press enter
-    println!("Welcome to chess! Type !help for all the commands");
-
-    game.get_board().print();
-
-    print!("\n\n{} to move. What's your move? ...\n", game.whose_turn());
-
-    let stdin = io::stdin();
-    for line_res in stdin.lock().lines() {
-        //printing board:
-
-        let mut line = line_res.unwrap();
-
-        if line.is_empty() {
-            println!("Type the move!");
-            continue;
-        }
-
-        let first_character = line.chars().next();
-
-        //parsing commands
-        if first_character.unwrap() == '!' {
-            let command = line.split_off(1);
-            match command.as_str() {
-                "help" => {
-                    print!(
-                        r#"
-Welcome to chess!
-Just type the move you want to make! (in algebraic chess notation: https://en.wikipedia.org/wiki/Algebraic_notation_(chess))
-
-Available commands:
-
-!help - show this dialog
-!move_count - show how many moves were made
-!test: test command
-"#
-                    );
-                }
-                "move_count" => {
-                    println!(
-                        "{} moves were made. {} to move.",
-                        game.move_count(),
-                        game.whose_turn()
-                    );
-                }
-                "test" => {
-                    println!("test command");
-                }
-                cmd => {
-                    println!("{} command doesn't exist. Try again.", cmd);
-                }
-            }
-        } else {
-            let parse_res = move_processor::parse_move(line, game);
-            if parse_res.is_err() {
-                println!("Error while parsing move: {}", parse_res.unwrap_err());
-                continue;
-            }
-
-            let the_move = parse_res.unwrap();
-
-            let move_res = game.perform_move(the_move);
-            if move_res.is_err() {
-                println!("Illegal move: {}", move_res.unwrap_err());
-                continue;
-            }
-
-            println!("{}", the_move);
-
-            game.get_board().print();
-            //move done successfully. check for end game condition
-            match game.get_end_state() {
-                GameEndState::Checkmate => {
-                    println!(
-                        "It's checkmate! {} has won!",
-                        game.whose_turn().the_other_one()
-                    );
-                    break;
-                }
-                GameEndState::Draw => {
-                    println!("It's a draw!");
-                    break;
-                }
-                GameEndState::Running => {
-                    print!("\n\n{} to move. What's your move? ...\n", game.whose_turn());
-                }
-            }
-        }
-    }
 }
 
 pub fn parse_fen(fen: String) -> Option<GameState> {
