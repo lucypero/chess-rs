@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - main
+
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Rust toolchain
+      run: rustup default stable
+
+    - name: Build
+      run: cargo build --bin chess-rs-server
+
+    - name: Run tests
+      run: cargo test --verbose
+
+    - name: Rustfmt and Clippy
+      run: |
+        cargo fmt -- --check
+        cargo clippy --all-features
