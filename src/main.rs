@@ -75,8 +75,9 @@ pub enum GameState {
 
 impl GameState {
     //called every time game state is switched
+
     fn init_mm() -> GameState {
-        GameState::MainMenu(MainMenuState::Main{ip_string:"0.0.0.0:3333".to_string()})
+        GameState::MainMenu(MainMenuState::Main{ip_string:"cryptic-savannah-25003.herokuapp.com:80".to_string()})
     }
 
     fn swap_to_in_game(&mut self, mut game : chess::GameState) {
@@ -85,7 +86,7 @@ impl GameState {
     }
 
     fn swap_to_mm(&mut self) {
-        *self = GameState::MainMenu(MainMenuState::Main{ip_string:"0.0.0.0:3333".to_string()})
+        *self = GameState::init_mm();
     }
 
     fn swap_to_multiplayer(&mut self, mp_state: MPState) {

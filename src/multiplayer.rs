@@ -47,7 +47,7 @@ impl MPState {
         // match TcpStream::connect("localhost:3333") {
         match TcpStream::connect(ip) {
             Ok(stream) => {
-                println!("Successfully connected to server in port 3333");
+                println!("Successfully connected to server");
                 tcp_stream_op = stream;
             },
             Err(e) => {
