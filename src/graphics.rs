@@ -152,6 +152,7 @@ pub fn get_mq_conf() -> Conf {
 #[derive(PartialEq)]
 enum Arrow {
     Arrow(Coord, Coord), //x,y -> u,v
+    KnightArrow(Coord, Coord),
     Circle(Coord),       //x,y
 }
 
@@ -684,6 +685,140 @@ impl GfxState {
     }
 
     fn draw_arrows(&mut self) {
+
+        fn draw_line(gfx : &GfxState, coord_from: Coord, coord_to: Coord, arrow_head: bool) {
+
+            let t = 10.0; //stem thiccness
+            let t_offset;
+
+            // y goes top bottom
+            if coord_to.x > coord_from.x && coord_to.y > coord_from.y {
+                // arrow -> top right
+                t_offset = vec2(-1.0, 0.0).normalize();
+            } else if coord_to.x > coord_from.x && coord_to.y < coord_from.y {
+                // arrow -> bottom right
+                t_offset = vec2(0.0, -1.0).normalize();
+            } else if coord_to.x > coord_from.x && coord_to.y == coord_to.y {
+                // arrow -> right
+                t_offset = vec2(-1.0, -1.0).normalize();
+            } else if coord_to.x < coord_from.x && coord_to.y > coord_from.y {
+                // arrow -> top left
+                t_offset = vec2(0.0, 1.0).normalize();
+            } else if coord_to.x < coord_from.x && coord_to.y < coord_from.y {
+                // arrow -> bottom left
+                t_offset = vec2(1.0, 0.0).normalize();
+            } else if coord_to.x == coord_from.x && coord_to.y > coord_from.y {
+                // arrow -> up
+                t_offset = vec2(-1.0, 1.0).normalize();
+            } else if coord_to.x == coord_from.x && coord_to.y < coord_from.y {
+                // arrow -> down
+                t_offset = vec2(1.0, -1.0).normalize();
+            } else {
+                //arrow -> left
+                t_offset = vec2(1.0, 1.0).normalize();
+            }
+
+            let tile_w = gfx.board_col.w / 8.0;
+
+
+            // arrow stem
+
+            // y:self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32 + t,
+            // if it is a diagonal to the top right
+            draw_triangle(
+                vec2(
+                    gfx.board_col.x
+                    + tile_w / 2.0
+                    + tile_w * coord_from.x as f32
+                    + t_offset.x * t,
+                    gfx.board_col.y
+                    + tile_w / 2.0
+                    + tile_w * (7 - coord_from.y) as f32
+                    + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x
+                    + tile_w / 2.0
+                    + tile_w * coord_to.x as f32
+                    + t_offset.x * t,
+                    gfx.board_col.y
+                    + tile_w / 2.0
+                    + tile_w * (7 - coord_to.y) as f32
+                    + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x
+                    + tile_w / 2.0
+                    + tile_w * coord_to.x as f32
+                    + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                    - t_offset.x * t,
+                ),
+                HIGHLIGHT_COLOR,
+                );
+            draw_triangle(
+                vec2(
+                    gfx.board_col.x
+                    + tile_w / 2.0
+                    + tile_w * coord_from.x as f32
+                    + t_offset.x * t,
+                    gfx.board_col.y
+                    + tile_w / 2.0
+                    + tile_w * (7 - coord_from.y) as f32
+                    + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x
+                    + tile_w / 2.0
+                    + tile_w * coord_from.x as f32
+                    + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32
+                    - t_offset.x * t,
+                ),
+                vec2(
+                    gfx.board_col.x
+                    + tile_w / 2.0
+                    + tile_w * coord_to.x as f32
+                    + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                    - t_offset.x * t,
+                ),
+                HIGHLIGHT_COLOR,
+                );
+
+                if !arrow_head {
+                    return;
+                }
+
+                // the arrow head
+                draw_triangle(
+                    vec2(
+                        gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32,
+                        gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32,
+                    ),
+                    vec2(
+                        gfx.board_col.x
+                        + tile_w / 2.0
+                        + tile_w * coord_to.x as f32
+                        + t_offset.x * t,
+                        gfx.board_col.y
+                        + tile_w / 2.0
+                        + tile_w * (7 - coord_to.y) as f32
+                        + t_offset.y * t,
+                    ),
+                    vec2(
+                        gfx.board_col.x
+                        + tile_w / 2.0
+                        + tile_w * coord_to.x as f32
+                        + t_offset.y * t,
+                        gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                        - t_offset.x * t,
+                    ),
+                    HIGHLIGHT_COLOR,
+                    );
+        }
+
+
         //draw arrows
         for arrow in &self.arrows {
             match arrow {
@@ -705,128 +840,7 @@ impl GfxState {
                         coord_to = *coord_to_orig;
                     }
 
-                    let t = 10.0; //stem thiccness
-                    let t_offset;
-
-                    // y goes top bottom
-                    if coord_to.x > coord_from.x && coord_to.y > coord_from.y {
-                        // arrow -> top right
-                        t_offset = vec2(-1.0, 0.0).normalize();
-                    } else if coord_to.x > coord_from.x && coord_to.y < coord_from.y {
-                        // arrow -> bottom right
-                        t_offset = vec2(0.0, -1.0).normalize();
-                    } else if coord_to.x > coord_from.x && coord_to.y == coord_to.y {
-                        // arrow -> right
-                        t_offset = vec2(-1.0, -1.0).normalize();
-                    } else if coord_to.x < coord_from.x && coord_to.y > coord_from.y {
-                        // arrow -> top left
-                        t_offset = vec2(0.0, 1.0).normalize();
-                    } else if coord_to.x < coord_from.x && coord_to.y < coord_from.y {
-                        // arrow -> bottom left
-                        t_offset = vec2(1.0, 0.0).normalize();
-                    } else if coord_to.x == coord_from.x && coord_to.y > coord_from.y {
-                        // arrow -> up
-                        t_offset = vec2(-1.0, 1.0).normalize();
-                    } else if coord_to.x == coord_from.x && coord_to.y < coord_from.y {
-                        // arrow -> down
-                        t_offset = vec2(1.0, -1.0).normalize();
-                    } else {
-                        //arrow -> left
-                        t_offset = vec2(1.0, 1.0).normalize();
-                    }
-
-                    let tile_w = self.board_col.w / 8.0;
-
-                    // arrow stem
-
-                    // y:self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32 + t,
-                    // if it is a diagonal to the top right
-                    draw_triangle(
-                        vec2(
-                            self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_from.x as f32
-                            + t_offset.x * t,
-                            self.board_col.y
-                            + tile_w / 2.0
-                            + tile_w * (7 - coord_from.y) as f32
-                            + t_offset.y * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_to.x as f32
-                            + t_offset.x * t,
-                            self.board_col.y
-                            + tile_w / 2.0
-                            + tile_w * (7 - coord_to.y) as f32
-                            + t_offset.y * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_to.x as f32
-                            + t_offset.y * t,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                            - t_offset.x * t,
-                        ),
-                        HIGHLIGHT_COLOR,
-                        );
-                    draw_triangle(
-                        vec2(
-                            self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_from.x as f32
-                            + t_offset.x * t,
-                            self.board_col.y
-                            + tile_w / 2.0
-                            + tile_w * (7 - coord_from.y) as f32
-                            + t_offset.y * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_from.x as f32
-                            + t_offset.y * t,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32
-                            - t_offset.x * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_to.x as f32
-                            + t_offset.y * t,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                            - t_offset.x * t,
-                        ),
-                        HIGHLIGHT_COLOR,
-                        );
-                    // the tip
-                    draw_triangle(
-                        vec2(
-                            self.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32,
-                        ),
-                        vec2(
-                            self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_to.x as f32
-                            + t_offset.x * t,
-                            self.board_col.y
-                            + tile_w / 2.0
-                            + tile_w * (7 - coord_to.y) as f32
-                            + t_offset.y * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                            + tile_w / 2.0
-                            + tile_w * coord_to.x as f32
-                            + t_offset.y * t,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                            - t_offset.x * t,
-                        ),
-                        HIGHLIGHT_COLOR,
-                        );
+                    draw_line(self, coord_from, coord_to, true);
                 }
                 Arrow::Circle(coord_orig) => {
                     let coord: Coord;
@@ -847,6 +861,30 @@ impl GfxState {
                         self.board_col.h / 8.0,
                         HIGHLIGHT_COLOR,
                     );
+                }
+                Arrow::KnightArrow(coord_from_orig, coord_to_orig) => {
+
+                    let coord_from: Coord;
+                    let coord_to: Coord;
+
+                    if self.is_board_flipped {
+                        coord_from = Coord {
+                            x: 7 - coord_from_orig.x,
+                            y: 7 - coord_from_orig.y,
+                        };
+                        coord_to = Coord {
+                            x: 7 - coord_to_orig.x,
+                            y: 7 - coord_to_orig.y,
+                        };
+                    } else {
+                        coord_from = *coord_from_orig;
+                        coord_to = *coord_to_orig;
+                    }
+
+                    let first_line_to = Coord{x:coord_to.x, y: coord_from.y};
+
+                    draw_line(self, coord_from, first_line_to, false);
+                    draw_line(self, first_line_to, coord_to, true);
                 }
             }
         }
@@ -916,11 +954,22 @@ impl GfxState {
                         } else {
                             self.arrows.push(val);
                         }
+                    } else {
+                        let coord_distance = coord_from.distance(coord_to);
+                        if (coord_distance.x.abs() == 2 && coord_distance.y.abs() == 1)
+                                || (coord_distance.x.abs() == 1 && coord_distance.y.abs() == 2) {
+                            let val = Arrow::KnightArrow(coord_from, coord_to);
+                            if self.arrows.contains(&val) {
+                                self.arrows.retain(|a| *a != val);
+                            } else {
+                                self.arrows.push(val);
+                            }
+
+                        }
                     }
                 }
             }
         }
-
 
         self.draw_arrows();
     }
@@ -1024,7 +1073,7 @@ impl GfxState {
             let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
 
             if self.board_col.is_in_box(mouse_vec) {
-                // self.clear_arrows();
+                self.clear_arrows();
             }
         }
 
