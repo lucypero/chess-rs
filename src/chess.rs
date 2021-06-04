@@ -891,7 +891,7 @@ impl GameState {
             let p_str = match p {
                 ChessPiece::Pawn => "",
                 ChessPiece::Rook => "R",
-                ChessPiece::Knight => "K",
+                ChessPiece::Knight => "N",
                 ChessPiece::Bishop => "B",
                 ChessPiece::Queen => "Q",
                 ChessPiece::King => "K",

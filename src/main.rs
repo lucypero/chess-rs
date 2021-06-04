@@ -78,7 +78,7 @@ impl GameState {
 
     fn init_mm() -> GameState {
         GameState::MainMenu(MainMenuState::Main {
-            ip_string: "cryptic-savannah-25003.herokuapp.com:80".to_string(),
+            ip_string: "0.0.0.0:3333".to_string(),
         })
     }
 
