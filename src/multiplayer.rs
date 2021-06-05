@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
+use std::time::Duration;
 
 use chess::{ChessPiece, ChessTeam, GameState, Move, Tile};
 
@@ -27,16 +28,17 @@ impl MPState {
     //connect to server and wait for game start
     pub fn init(ip: String) -> MPState {
         let mut game = GameState::init();
+        println!("ip {}", ip);
 
         let tcp_stream_op;
 
         match TcpStream::connect(ip) {
             Ok(stream) => {
-                println!("Successfully connected to server");
+                println!("Successfully connected to server. Waiting for another player...");
                 tcp_stream_op = stream;
             }
             Err(e) => {
-                panic!("error atconnecting {}", e);
+                panic!("error at connecting {}", e);
             }
         }
 
@@ -103,7 +105,7 @@ impl MPState {
         let team;
 
         loop {
-            match rx_recv.recv() {
+            match rx_recv.try_recv() {
                 Ok(message) => match message {
                     Message::GameStart(the_team) => {
                         team = the_team;
@@ -114,10 +116,13 @@ impl MPState {
                         println!("recieved move! but game didn's start yet!?? {:?}", the_move);
                     }
                 },
+                Err(mpsc::TryRecvError::Empty) => {},
                 Err(_) => {
                     panic!("recv error");
                 }
             }
+
+            thread::sleep(Duration::from_millis(200));
         }
 
         let gfx_state = GfxState::init(&mut game, Some(team));

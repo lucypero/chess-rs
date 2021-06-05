@@ -153,7 +153,7 @@ pub fn get_mq_conf() -> Conf {
 enum Arrow {
     Arrow(Coord, Coord), //x,y -> u,v
     KnightArrow(Coord, Coord),
-    Circle(Coord),       //x,y
+    Circle(Coord), //x,y
 }
 
 pub struct GfxState {
@@ -685,9 +685,7 @@ impl GfxState {
     }
 
     fn draw_arrows(&mut self) {
-
-        fn draw_line(gfx : &GfxState, coord_from: Coord, coord_to: Coord, arrow_head: bool) {
-
+        fn draw_line(gfx: &GfxState, coord_from: Coord, coord_to: Coord, arrow_head: bool) {
             let t = 10.0; //stem thiccness
             let t_offset;
 
@@ -720,104 +718,78 @@ impl GfxState {
 
             let tile_w = gfx.board_col.w / 8.0;
 
-
             // arrow stem
 
             // y:self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32 + t,
             // if it is a diagonal to the top right
             draw_triangle(
                 vec2(
-                    gfx.board_col.x
-                    + tile_w / 2.0
-                    + tile_w * coord_from.x as f32
-                    + t_offset.x * t,
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_from.x as f32 + t_offset.x * t,
                     gfx.board_col.y
-                    + tile_w / 2.0
-                    + tile_w * (7 - coord_from.y) as f32
-                    + t_offset.y * t,
-                ),
-                vec2(
-                    gfx.board_col.x
-                    + tile_w / 2.0
-                    + tile_w * coord_to.x as f32
-                    + t_offset.x * t,
-                    gfx.board_col.y
-                    + tile_w / 2.0
-                    + tile_w * (7 - coord_to.y) as f32
-                    + t_offset.y * t,
-                ),
-                vec2(
-                    gfx.board_col.x
-                    + tile_w / 2.0
-                    + tile_w * coord_to.x as f32
-                    + t_offset.y * t,
-                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                    - t_offset.x * t,
-                ),
-                HIGHLIGHT_COLOR,
-                );
-            draw_triangle(
-                vec2(
-                    gfx.board_col.x
-                    + tile_w / 2.0
-                    + tile_w * coord_from.x as f32
-                    + t_offset.x * t,
-                    gfx.board_col.y
-                    + tile_w / 2.0
-                    + tile_w * (7 - coord_from.y) as f32
-                    + t_offset.y * t,
-                ),
-                vec2(
-                    gfx.board_col.x
-                    + tile_w / 2.0
-                    + tile_w * coord_from.x as f32
-                    + t_offset.y * t,
-                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32
-                    - t_offset.x * t,
-                ),
-                vec2(
-                    gfx.board_col.x
-                    + tile_w / 2.0
-                    + tile_w * coord_to.x as f32
-                    + t_offset.y * t,
-                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                    - t_offset.x * t,
-                ),
-                HIGHLIGHT_COLOR,
-                );
-
-                if !arrow_head {
-                    return;
-                }
-
-                // the arrow head
-                draw_triangle(
-                    vec2(
-                        gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32,
-                        gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32,
-                    ),
-                    vec2(
-                        gfx.board_col.x
                         + tile_w / 2.0
-                        + tile_w * coord_to.x as f32
-                        + t_offset.x * t,
-                        gfx.board_col.y
+                        + tile_w * (7 - coord_from.y) as f32
+                        + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.x * t,
+                    gfx.board_col.y
                         + tile_w / 2.0
                         + tile_w * (7 - coord_to.y) as f32
                         + t_offset.y * t,
-                    ),
-                    vec2(
-                        gfx.board_col.x
-                        + tile_w / 2.0
-                        + tile_w * coord_to.x as f32
-                        + t_offset.y * t,
-                        gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
                         - t_offset.x * t,
-                    ),
-                    HIGHLIGHT_COLOR,
-                    );
-        }
+                ),
+                HIGHLIGHT_COLOR,
+            );
+            draw_triangle(
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_from.x as f32 + t_offset.x * t,
+                    gfx.board_col.y
+                        + tile_w / 2.0
+                        + tile_w * (7 - coord_from.y) as f32
+                        + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_from.x as f32 + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32
+                        - t_offset.x * t,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                        - t_offset.x * t,
+                ),
+                HIGHLIGHT_COLOR,
+            );
 
+            if !arrow_head {
+                return;
+            }
+
+            // the arrow head
+            draw_triangle(
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.x * t,
+                    gfx.board_col.y
+                        + tile_w / 2.0
+                        + tile_w * (7 - coord_to.y) as f32
+                        + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                        - t_offset.x * t,
+                ),
+                HIGHLIGHT_COLOR,
+            );
+        }
 
         //draw arrows
         for arrow in &self.arrows {
@@ -863,7 +835,6 @@ impl GfxState {
                     );
                 }
                 Arrow::KnightArrow(coord_from_orig, coord_to_orig) => {
-
                     let coord_from: Coord;
                     let coord_to: Coord;
 
@@ -881,7 +852,10 @@ impl GfxState {
                         coord_to = *coord_to_orig;
                     }
 
-                    let first_line_to = Coord{x:coord_to.x, y: coord_from.y};
+                    let first_line_to = Coord {
+                        x: coord_to.x,
+                        y: coord_from.y,
+                    };
 
                     draw_line(self, coord_from, first_line_to, false);
                     draw_line(self, first_line_to, coord_to, true);
@@ -889,7 +863,7 @@ impl GfxState {
             }
         }
     }
-    
+
     fn handle_arrows_input(&mut self) {
         // start arrow registration when pressing right mouse button
         if input::is_mouse_button_pressed(MouseButton::Right) && !self.is_dragged {
@@ -957,14 +931,14 @@ impl GfxState {
                     } else {
                         let coord_distance = coord_from.distance(coord_to);
                         if (coord_distance.x.abs() == 2 && coord_distance.y.abs() == 1)
-                                || (coord_distance.x.abs() == 1 && coord_distance.y.abs() == 2) {
+                            || (coord_distance.x.abs() == 1 && coord_distance.y.abs() == 2)
+                        {
                             let val = Arrow::KnightArrow(coord_from, coord_to);
                             if self.arrows.contains(&val) {
                                 self.arrows.retain(|a| *a != val);
                             } else {
                                 self.arrows.push(val);
                             }
-
                         }
                     }
                 }
@@ -1435,6 +1409,9 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
 
     clear_background(BACKGROUND_COLOR);
 
+    //listen for keyboard events 
+
+
     egui_macroquad::ui(|egui_ctx| match mm_state {
         MainMenuState::Main { ip_string } => {
             egui::Window::new("Main Menu!").show(egui_ctx, |ui| {
@@ -1443,11 +1420,8 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
                         fen_string: String::new(),
                     });
                 }
-                ui.add(egui::TextEdit::singleline(ip_string));
-                if ui.add(egui::Button::new("Play online (host)")).clicked() {
-                    play_host_clicked = true;
-                }
-                if ui.add(egui::Button::new("Play online (client)")).clicked() {
+                // ui.add(egui::TextEdit::singleline(ip_string));
+                if ui.add(egui::Button::new("Look for a player online")).clicked() {
                     play_client_clicked = true;
                 }
             });
@@ -1480,14 +1454,11 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
                 res = MenuChange::Game(game);
             }
         }
-    } else if play_host_clicked {
-        if let MainMenuState::Main { ip_string } = mm_state {
-            let mp_state = MPState::init(ip_string.clone());
-            res = MenuChange::MultiplayerGame(mp_state);
-        }
     } else if play_client_clicked {
         if let MainMenuState::Main { ip_string } = mm_state {
-            let mp_state = MPState::init(ip_string.clone());
+            // let mp_state = MPState::init(ip_string.clone());
+            // let mp_state = MPState::init(ip_string.clone());
+            let mp_state = MPState::init("193.200.238.76:3333".to_string());
             res = MenuChange::MultiplayerGame(mp_state);
         }
     }
