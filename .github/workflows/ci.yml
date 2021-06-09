@@ -44,5 +44,5 @@ jobs:
         path: target/release/chess-rs-server
 
     - name: Notify server
-      run: echo $GITHUB_JOB | netcat --tcp ${{secrets.SECRET_SERVER_IP}} 3334
+      run: echo $GITHUB_JOB | netcat ${{secrets.SECRET_SERVER_IP}} 3334
 
