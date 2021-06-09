@@ -32,10 +32,10 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
-    - name: Rustfmt and Clippy
-      run: |
-        cargo fmt -- --check
-        cargo clippy
+    # - name: Rustfmt and Clippy
+    #   run: |
+    #     cargo fmt -- --check
+    #     cargo clippy
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
