@@ -5,9 +5,15 @@ on:
     branches:
     - main
 
+    paths:
+    - 'src/server/**.rs'
+
   pull_request:
     branches:
     - main
+
+    paths:
+    - 'src/server/**.rs'
 
 jobs:
   build:
@@ -36,3 +42,6 @@ jobs:
       with:
         name: chess-rs-server
         path: target/release/chess-rs-server
+
+    - name: Notify server
+
