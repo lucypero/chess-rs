@@ -750,80 +750,7 @@ impl GameState {
                 was_capture_or_pawn_move = true;
             }
             Move::CastleShort | Move::CastleLong => {
-                //1. check if the player has castling rights
-                let the_err = Err(MoveError::CastlingNoRights);
-
-                match whose_turn {
-                    ChessTeam::Black => {
-                        if (chess_move == Move::CastleShort && !board.castling_rights.2)
-                            || (chess_move == Move::CastleLong && !board.castling_rights.3)
-                        {
-                            return the_err;
-                        }
-                    }
-                    ChessTeam::White => {
-                        if (chess_move == Move::CastleShort && !board.castling_rights.0)
-                            || (chess_move == Move::CastleLong && !board.castling_rights.1)
-                        {
-                            return the_err;
-                        }
-                    }
-                }
-
-                //2. check if tiles in between are free
-
-                // tiles in between for white, short castle: F1 G1
-                // tiles in between for black, short castle: F8 G8
-
-                // tiles in between for white, long castle: B1 C1 D1
-                // tiles in between for black, long castle: B8 C8 D8
-
-                let tiles_in_btw = match whose_turn {
-                    ChessTeam::Black => {
-                        if chess_move == Move::CastleShort {
-                            vec![Tile::F8, Tile::G8]
-                        } else {
-                            vec![Tile::B8, Tile::C8, Tile::D8]
-                        }
-                    }
-                    ChessTeam::White => {
-                        if chess_move == Move::CastleShort {
-                            vec![Tile::F1, Tile::G1]
-                        } else {
-                            vec![Tile::B1, Tile::C1, Tile::D1]
-                        }
-                    }
-                };
-
-                for tile in tiles_in_btw {
-                    if board.get_piece(tile).is_some() {
-                        return Err(MoveError::CastlingTilesInBetweenNotFree);
-                    }
-                }
-
-                //3. check if king is not in check and does not go through check
-                let tiles_king = match whose_turn {
-                    ChessTeam::Black => {
-                        if chess_move == Move::CastleShort {
-                            vec![Tile::E8, Tile::F8, Tile::G8]
-                        } else {
-                            vec![Tile::C8, Tile::D8, Tile::E8]
-                        }
-                    }
-                    ChessTeam::White => {
-                        if chess_move == Move::CastleShort {
-                            vec![Tile::E1, Tile::F1, Tile::G1]
-                        } else {
-                            vec![Tile::C1, Tile::D1, Tile::E1]
-                        }
-                    }
-                };
-
-                for tile in tiles_king {
-                    if board.is_tile_attacked_by(whose_turn.the_other_one(), tile, ep_square) {
-                        return Err(MoveError::CastlingThroughCheck);
-                    }
-                }
+                board.is_castle_legal(chess_move, ep_square)?;
             }
         }
 
@@ -891,7 +818,7 @@ impl GameState {
             let p_str = match p {
                 ChessPiece::Pawn => "",
                 ChessPiece::Rook => "R",
-                ChessPiece::Knight => "K",
+                ChessPiece::Knight => "N",
                 ChessPiece::Bishop => "B",
                 ChessPiece::Queen => "Q",
                 ChessPiece::King => "K",
@@ -2055,6 +1982,121 @@ impl Board {
         });
 
         Some(moves)
+    }
+
+
+    fn is_castle_legal(&self, chess_move:Move, ep_square: Option<Tile>) -> Result<(), MoveError> {
+        //1. check if the player has castling rights
+        let the_err = Err(MoveError::CastlingNoRights);
+
+        match self.whose_turn {
+            ChessTeam::Black => {
+                if (chess_move == Move::CastleShort && !self.castling_rights.2)
+                    || (chess_move == Move::CastleLong && !self.castling_rights.3)
+                {
+                    return the_err;
+                }
+            }
+            ChessTeam::White => {
+                if (chess_move == Move::CastleShort && !self.castling_rights.0)
+                    || (chess_move == Move::CastleLong && !self.castling_rights.1)
+                {
+                    return the_err;
+                }
+            }
+        }
+
+        //2. check if tiles in between are free
+
+        // tiles in between for white, short castle: F1 G1
+        // tiles in between for black, short castle: F8 G8
+
+        // tiles in between for white, long castle: B1 C1 D1
+        // tiles in between for black, long castle: B8 C8 D8
+
+        let tiles_in_btw = match self.whose_turn {
+            ChessTeam::Black => {
+                if chess_move == Move::CastleShort {
+                    vec![Tile::F8, Tile::G8]
+                } else {
+                    vec![Tile::B8, Tile::C8, Tile::D8]
+                }
+            }
+            ChessTeam::White => {
+                if chess_move == Move::CastleShort {
+                    vec![Tile::F1, Tile::G1]
+                } else {
+                    vec![Tile::B1, Tile::C1, Tile::D1]
+                }
+            }
+        };
+
+        for tile in tiles_in_btw {
+            if self.get_piece(tile).is_some() {
+                return Err(MoveError::CastlingTilesInBetweenNotFree);
+            }
+        }
+
+        //3. check if king is not in check and does not go through check
+        let tiles_king = match self.whose_turn {
+            ChessTeam::Black => {
+                if chess_move == Move::CastleShort {
+                    vec![Tile::E8, Tile::F8, Tile::G8]
+                } else {
+                    vec![Tile::C8, Tile::D8, Tile::E8]
+                }
+            }
+            ChessTeam::White => {
+                if chess_move == Move::CastleShort {
+                    vec![Tile::E1, Tile::F1, Tile::G1]
+                } else {
+                    vec![Tile::C1, Tile::D1, Tile::E1]
+                }
+            }
+        };
+
+        for tile in tiles_king {
+            if self.is_tile_attacked_by(self.whose_turn.the_other_one(), tile, ep_square) {
+                return Err(MoveError::CastlingThroughCheck);
+            }
+        }
+
+        return Ok(());
+    }
+
+    pub fn get_king_casle_moves(&self, tile:Tile, ep_square: Option<Tile>) -> Vec<Coord> {
+        let mut res = vec![];
+        let piece = self.get_piece(tile).unwrap();
+        let piece_type = piece.1;
+
+        if piece_type != ChessPiece::King {
+            return res;
+        }
+
+
+        if self.is_castle_legal(Move::CastleShort, ep_square).is_ok() {
+            match self.whose_turn {
+                ChessTeam::Black => {
+                    res.push(Coord{x:6,y:7});
+                }
+                ChessTeam::White => {
+                    res.push(Coord{x:6,y:0});
+                }
+            }
+        }
+
+        if self.is_castle_legal(Move::CastleLong, ep_square).is_ok() {
+            match self.whose_turn {
+                ChessTeam::Black => {
+                    res.push(Coord{x:2,y:7});
+                }
+                ChessTeam::White => {
+                    res.push(Coord{x:2,y:0});
+                }
+            }
+        }
+
+        res
     }
 
     pub fn is_team_in_check(&self, team: ChessTeam, ep_square: Option<Tile>) -> bool {

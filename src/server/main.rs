@@ -1,6 +1,8 @@
 #![warn(rust_2018_idioms)]
 #![allow(dead_code)]
 
+//hi
+
 use bincode::Options;
 use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};

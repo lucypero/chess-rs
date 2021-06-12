@@ -152,7 +152,8 @@ pub fn get_mq_conf() -> Conf {
 #[derive(PartialEq)]
 enum Arrow {
     Arrow(Coord, Coord), //x,y -> u,v
-    Circle(Coord),       //x,y
+    KnightArrow(Coord, Coord),
+    Circle(Coord), //x,y
 }
 
 pub struct GfxState {
@@ -300,6 +301,8 @@ impl GfxState {
         //updating last move
 
         self.sync_board(&board);
+
+        self.clear_arrows();
 
         // if it is not the last move, lock the board (can't make any move)
     }
@@ -672,8 +675,277 @@ impl GfxState {
         self.viewed_move = game.move_count();
         self.moves_str
             .push(game.get_move_in_chess_notation(self.viewed_move - 1));
+        self.clear_arrows();
         self.handle_end_state(game);
         self.sync_board(&game.get_board());
+    }
+
+    fn clear_arrows(&mut self) {
+        self.arrows.clear();
+    }
+
+    fn draw_arrows(&mut self) {
+        fn draw_line(gfx: &GfxState, coord_from: Coord, coord_to: Coord, arrow_head: bool) {
+            let t = 10.0; //stem thiccness
+            let t_offset;
+
+            // y goes top bottom
+            if coord_to.x > coord_from.x && coord_to.y > coord_from.y {
+                // arrow -> top right
+                t_offset = vec2(-1.0, 0.0).normalize();
+            } else if coord_to.x > coord_from.x && coord_to.y < coord_from.y {
+                // arrow -> bottom right
+                t_offset = vec2(0.0, -1.0).normalize();
+            } else if coord_to.x > coord_from.x && coord_to.y == coord_to.y {
+                // arrow -> right
+                t_offset = vec2(-1.0, -1.0).normalize();
+            } else if coord_to.x < coord_from.x && coord_to.y > coord_from.y {
+                // arrow -> top left
+                t_offset = vec2(0.0, 1.0).normalize();
+            } else if coord_to.x < coord_from.x && coord_to.y < coord_from.y {
+                // arrow -> bottom left
+                t_offset = vec2(1.0, 0.0).normalize();
+            } else if coord_to.x == coord_from.x && coord_to.y > coord_from.y {
+                // arrow -> up
+                t_offset = vec2(-1.0, 1.0).normalize();
+            } else if coord_to.x == coord_from.x && coord_to.y < coord_from.y {
+                // arrow -> down
+                t_offset = vec2(1.0, -1.0).normalize();
+            } else {
+                //arrow -> left
+                t_offset = vec2(1.0, 1.0).normalize();
+            }
+
+            let tile_w = gfx.board_col.w / 8.0;
+
+            // arrow stem
+
+            // y:self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32 + t,
+            // if it is a diagonal to the top right
+            draw_triangle(
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_from.x as f32 + t_offset.x * t,
+                    gfx.board_col.y
+                        + tile_w / 2.0
+                        + tile_w * (7 - coord_from.y) as f32
+                        + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.x * t,
+                    gfx.board_col.y
+                        + tile_w / 2.0
+                        + tile_w * (7 - coord_to.y) as f32
+                        + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                        - t_offset.x * t,
+                ),
+                HIGHLIGHT_COLOR,
+            );
+            draw_triangle(
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_from.x as f32 + t_offset.x * t,
+                    gfx.board_col.y
+                        + tile_w / 2.0
+                        + tile_w * (7 - coord_from.y) as f32
+                        + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_from.x as f32 + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32
+                        - t_offset.x * t,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                        - t_offset.x * t,
+                ),
+                HIGHLIGHT_COLOR,
+            );
+
+            if !arrow_head {
+                return;
+            }
+
+            // the arrow head
+            draw_triangle(
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.x * t,
+                    gfx.board_col.y
+                        + tile_w / 2.0
+                        + tile_w * (7 - coord_to.y) as f32
+                        + t_offset.y * t,
+                ),
+                vec2(
+                    gfx.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32 + t_offset.y * t,
+                    gfx.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
+                        - t_offset.x * t,
+                ),
+                HIGHLIGHT_COLOR,
+            );
+        }
+
+        //draw arrows
+        for arrow in &self.arrows {
+            match arrow {
+                Arrow::Arrow(coord_from_orig, coord_to_orig) => {
+                    let coord_from: Coord;
+                    let coord_to: Coord;
+
+                    if self.is_board_flipped {
+                        coord_from = Coord {
+                            x: 7 - coord_from_orig.x,
+                            y: 7 - coord_from_orig.y,
+                        };
+                        coord_to = Coord {
+                            x: 7 - coord_to_orig.x,
+                            y: 7 - coord_to_orig.y,
+                        };
+                    } else {
+                        coord_from = *coord_from_orig;
+                        coord_to = *coord_to_orig;
+                    }
+
+                    draw_line(self, coord_from, coord_to, true);
+                }
+                Arrow::Circle(coord_orig) => {
+                    let coord: Coord;
+
+                    if self.is_board_flipped {
+                        coord = Coord {
+                            x: 7 - coord_orig.x,
+                            y: 7 - coord_orig.y,
+                        };
+                    } else {
+                        coord = *coord_orig;
+                    }
+
+                    draw_rectangle(
+                        self.board_col.x + (self.board_col.w / 8.0) * coord.x as f32,
+                        self.board_col.y + (self.board_col.h / 8.0) * (7 - coord.y) as f32,
+                        self.board_col.w / 8.0,
+                        self.board_col.h / 8.0,
+                        HIGHLIGHT_COLOR,
+                    );
+                }
+                Arrow::KnightArrow(coord_from_orig, coord_to_orig) => {
+                    let coord_from: Coord;
+                    let coord_to: Coord;
+
+                    if self.is_board_flipped {
+                        coord_from = Coord {
+                            x: 7 - coord_from_orig.x,
+                            y: 7 - coord_from_orig.y,
+                        };
+                        coord_to = Coord {
+                            x: 7 - coord_to_orig.x,
+                            y: 7 - coord_to_orig.y,
+                        };
+                    } else {
+                        coord_from = *coord_from_orig;
+                        coord_to = *coord_to_orig;
+                    }
+
+                    let first_line_to = Coord {
+                        x: coord_to.x,
+                        y: coord_from.y,
+                    };
+
+                    draw_line(self, coord_from, first_line_to, false);
+                    draw_line(self, first_line_to, coord_to, true);
+                }
+            }
+        }
+    }
+
+    fn handle_arrows_input(&mut self) {
+        // start arrow registration when pressing right mouse button
+        if input::is_mouse_button_pressed(MouseButton::Right) && !self.is_dragged {
+            let mouse_vec = input::mouse_position();
+            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
+            if self.board_col.is_in_box(mouse_vec) {
+                //get tile where the mouse was in
+                let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
+                let coord_y = (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32;
+
+                if self.is_board_flipped {
+                    self.coord_on_right_click_press = Some(Coord {
+                        x: 7 - coord_x,
+                        y: coord_y,
+                    });
+                } else {
+                    self.coord_on_right_click_press = Some(Coord {
+                        x: coord_x,
+                        y: 7 - coord_y,
+                    });
+                }
+            }
+        }
+
+        // register arrow when right mouse button is released
+        if input::is_mouse_button_released(MouseButton::Right) {
+            let mouse_vec = input::mouse_position();
+            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
+            if self.board_col.is_in_box(mouse_vec) {
+                //get tile where the mouse was in
+                let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
+                let coord_y = (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32;
+
+                let coord_to;
+
+                if self.is_board_flipped {
+                    coord_to = Coord {
+                        x: 7 - coord_x,
+                        y: coord_y,
+                    };
+                } else {
+                    coord_to = Coord {
+                        x: coord_x,
+                        y: 7 - coord_y,
+                    };
+                }
+
+                self.coord_on_right_click_release = Some(coord_to);
+
+                if let Some(coord_from) = self.coord_on_right_click_press {
+                    if coord_from == coord_to {
+                        let val = Arrow::Circle(coord_from);
+                        if self.arrows.contains(&val) {
+                            self.arrows.retain(|a| *a != val);
+                        } else {
+                            self.arrows.push(val);
+                        }
+                    } else if (coord_to - coord_from).magnitude().is_some() {
+                        let val = Arrow::Arrow(coord_from, coord_to);
+                        if self.arrows.contains(&val) {
+                            self.arrows.retain(|a| *a != val);
+                        } else {
+                            self.arrows.push(val);
+                        }
+                    } else {
+                        let coord_distance = coord_from.distance(coord_to);
+                        if (coord_distance.x.abs() == 2 && coord_distance.y.abs() == 1)
+                            || (coord_distance.x.abs() == 1 && coord_distance.y.abs() == 2)
+                        {
+                            let val = Arrow::KnightArrow(coord_from, coord_to);
+                            if self.arrows.contains(&val) {
+                                self.arrows.retain(|a| *a != val);
+                            } else {
+                                self.arrows.push(val);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        self.draw_arrows();
     }
 
     pub fn draw(&mut self, game: &mut GameState) -> Option<PlayerInput> {
@@ -769,6 +1041,16 @@ impl GfxState {
             }
         }
 
+        // clear arrows if u click the board
+        if input::is_mouse_button_down(MouseButton::Left) {
+            let mouse_vec = input::mouse_position();
+            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
+
+            if self.board_col.is_in_box(mouse_vec) {
+                self.clear_arrows();
+            }
+        }
+
         // cycle move display with arrow_left and arrow_right
         if input::is_key_pressed(KeyCode::Left) {
             self.show_move(game, cmp::max(0, self.viewed_move as i32 - 1) as usize);
@@ -823,6 +1105,7 @@ impl GfxState {
                         self.viewed_move = game.move_count();
                         self.moves_str
                             .push(game.get_move_in_chess_notation(self.viewed_move - 1));
+                        self.clear_arrows();
                         self.handle_end_state(game);
                     }
 
@@ -869,14 +1152,19 @@ impl GfxState {
                     self.is_dragged = true;
 
                     // populate dragged legal moves
+                    let the_tile = Tile::try_from(self.pieces[i].pos).unwrap();
+
                     let ep_square = game.en_passant_square;
                     let board = game.get_board();
                     self.dragged_legal_moves = board
                         .get_legal_moves_of_piece_in_tile(
-                            Tile::try_from(self.pieces[i].pos).unwrap(),
+                            the_tile,
                             ep_square,
                         )
                         .unwrap();
+                    //adding castling move
+                    self.dragged_legal_moves.append(
+                        &mut board.get_king_casle_moves(the_tile,ep_square));
 
                     // self.drag_offset.x = mouse_vec.x - piece.col.x;
                     // self.drag_offset.y = mouse_vec.y - piece.col.y;
@@ -941,235 +1229,7 @@ impl GfxState {
             self.pieces[self.dragged_piece_i].draw(&self.pieces_tex);
         }
 
-        //handle arrow input
-        if input::is_mouse_button_pressed(MouseButton::Right) && !self.is_dragged {
-            let mouse_vec = input::mouse_position();
-            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
-            if self.board_col.is_in_box(mouse_vec) {
-                //get tile where the mouse was in
-                let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
-                let coord_y = (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32;
-
-                self.coord_on_right_click_press = Some(Coord {
-                    x: coord_x,
-                    y: 7 - coord_y,
-                });
-
-                draw_rectangle(
-                    self.board_col.x + (self.board_col.w / 8.0) * coord_x as f32,
-                    self.board_col.y + (self.board_col.h / 8.0) * coord_y as f32,
-                    self.board_col.w / 8.0,
-                    self.board_col.h / 8.0,
-                    Color {
-                        r: HIGHLIGHT_COLOR_RGB.0,
-                        g: HIGHLIGHT_COLOR_RGB.1,
-                        b: HIGHLIGHT_COLOR_RGB.2,
-                        a: 0.2,
-                    },
-                );
-            }
-        }
-
-        if input::is_mouse_button_released(MouseButton::Right) {
-            let mouse_vec = input::mouse_position();
-            let mouse_vec = vec2(mouse_vec.0, mouse_vec.1);
-            if self.board_col.is_in_box(mouse_vec) {
-                //get tile where the mouse was in
-                let coord_x = (((mouse_vec.x - self.board_col.x) / self.board_col.w) * 8.0) as i32;
-                let coord_y = (((mouse_vec.y - self.board_col.y) / self.board_col.h) * 8.0) as i32;
-                let coord_to = Coord {
-                    x: coord_x,
-                    y: 7 - coord_y,
-                };
-
-                self.coord_on_right_click_release = Some(coord_to);
-
-                if let Some(coord_from) = self.coord_on_right_click_press {
-                    if coord_from == coord_to {
-                        let val = Arrow::Circle(coord_from);
-                        if self.arrows.contains(&val) {
-                            self.arrows.retain(|a| *a != val);
-                        } else {
-                            self.arrows.push(val);
-                        }
-                    } else if (coord_to - coord_from).magnitude().is_some() {
-                        let val = Arrow::Arrow(coord_from, coord_to);
-                        if self.arrows.contains(&val) {
-                            self.arrows.retain(|a| *a != val);
-                        } else {
-                            self.arrows.push(val);
-                        }
-                    }
-                }
-            }
-        }
-
-        //draw arrows
-        for arrow in &self.arrows {
-            match arrow {
-                Arrow::Arrow(coord_from_orig, coord_to_orig) => {
-                    let coord_from: Coord;
-                    let coord_to: Coord;
-
-                    if self.is_board_flipped {
-                        coord_from = Coord {
-                            x: 7 - coord_from_orig.x,
-                            y: 7 - coord_from_orig.y,
-                        };
-                        coord_to = Coord {
-                            x: 7 - coord_to_orig.x,
-                            y: 7 - coord_to_orig.y,
-                        };
-                    } else {
-                        coord_from = *coord_from_orig;
-                        coord_to = *coord_to_orig;
-                    }
-
-                    let t = 10.0; //stem thiccness
-                    let t_offset;
-
-                    // y goes top bottom
-                    if coord_to.x > coord_from.x && coord_to.y > coord_from.y {
-                        // arrow -> top right
-                        t_offset = vec2(-1.0, 0.0).normalize();
-                    } else if coord_to.x > coord_from.x && coord_to.y < coord_from.y {
-                        // arrow -> bottom right
-                        t_offset = vec2(0.0, -1.0).normalize();
-                    } else if coord_to.x > coord_from.x && coord_to.y == coord_to.y {
-                        // arrow -> right
-                        t_offset = vec2(-1.0, -1.0).normalize();
-                    } else if coord_to.x < coord_from.x && coord_to.y > coord_from.y {
-                        // arrow -> top left
-                        t_offset = vec2(0.0, 1.0).normalize();
-                    } else if coord_to.x < coord_from.x && coord_to.y < coord_from.y {
-                        // arrow -> bottom left
-                        t_offset = vec2(1.0, 0.0).normalize();
-                    } else if coord_to.x == coord_from.x && coord_to.y > coord_from.y {
-                        // arrow -> up
-                        t_offset = vec2(-1.0, 1.0).normalize();
-                    } else if coord_to.x == coord_from.x && coord_to.y < coord_from.y {
-                        // arrow -> down
-                        t_offset = vec2(1.0, -1.0).normalize();
-                    } else {
-                        //arrow -> left
-                        t_offset = vec2(1.0, 1.0).normalize();
-                    }
-
-                    let tile_w = self.board_col.w / 8.0;
-
-                    // arrow stem
-
-                    // y:self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32 + t,
-                    // if it is a diagonal to the top right
-                    draw_triangle(
-                        vec2(
-                            self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_from.x as f32
-                                + t_offset.x * t,
-                            self.board_col.y
-                                + tile_w / 2.0
-                                + tile_w * (7 - coord_from.y) as f32
-                                + t_offset.y * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_to.x as f32
-                                + t_offset.x * t,
-                            self.board_col.y
-                                + tile_w / 2.0
-                                + tile_w * (7 - coord_to.y) as f32
-                                + t_offset.y * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_to.x as f32
-                                + t_offset.y * t,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                                - t_offset.x * t,
-                        ),
-                        HIGHLIGHT_COLOR,
-                    );
-                    draw_triangle(
-                        vec2(
-                            self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_from.x as f32
-                                + t_offset.x * t,
-                            self.board_col.y
-                                + tile_w / 2.0
-                                + tile_w * (7 - coord_from.y) as f32
-                                + t_offset.y * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_from.x as f32
-                                + t_offset.y * t,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_from.y) as f32
-                                - t_offset.x * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_to.x as f32
-                                + t_offset.y * t,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                                - t_offset.x * t,
-                        ),
-                        HIGHLIGHT_COLOR,
-                    );
-                    // the tip
-                    draw_triangle(
-                        vec2(
-                            self.board_col.x + tile_w / 2.0 + tile_w * coord_to.x as f32,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32,
-                        ),
-                        vec2(
-                            self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_to.x as f32
-                                + t_offset.x * t,
-                            self.board_col.y
-                                + tile_w / 2.0
-                                + tile_w * (7 - coord_to.y) as f32
-                                + t_offset.y * t,
-                        ),
-                        vec2(
-                            self.board_col.x
-                                + tile_w / 2.0
-                                + tile_w * coord_to.x as f32
-                                + t_offset.y * t,
-                            self.board_col.y + tile_w / 2.0 + tile_w * (7 - coord_to.y) as f32
-                                - t_offset.x * t,
-                        ),
-                        HIGHLIGHT_COLOR,
-                    );
-                }
-                Arrow::Circle(coord_orig) => {
-                    let coord: Coord;
-
-                    if self.is_board_flipped {
-                        coord = Coord {
-                            x: 7 - coord_orig.x,
-                            y: 7 - coord_orig.y,
-                        };
-                    } else {
-                        coord = *coord_orig;
-                    }
-
-                    draw_rectangle(
-                        self.board_col.x + (self.board_col.w / 8.0) * coord.x as f32,
-                        self.board_col.y + (self.board_col.h / 8.0) * (7 - coord.y) as f32,
-                        self.board_col.w / 8.0,
-                        self.board_col.h / 8.0,
-                        HIGHLIGHT_COLOR,
-                    );
-                }
-            }
-        }
+        self.handle_arrows_input();
 
         //draw moves ui
         // self.draw_moves_ui(game);
@@ -1354,6 +1414,9 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
 
     clear_background(BACKGROUND_COLOR);
 
+    //listen for keyboard events 
+
+
     egui_macroquad::ui(|egui_ctx| match mm_state {
         MainMenuState::Main { ip_string } => {
             egui::Window::new("Main Menu!").show(egui_ctx, |ui| {
@@ -1362,11 +1425,8 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
                         fen_string: String::new(),
                     });
                 }
-                ui.add(egui::TextEdit::singleline(ip_string));
-                if ui.add(egui::Button::new("Play online (host)")).clicked() {
-                    play_host_clicked = true;
-                }
-                if ui.add(egui::Button::new("Play online (client)")).clicked() {
+                // ui.add(egui::TextEdit::singleline(ip_string));
+                if ui.add(egui::Button::new("Look for a player online")).clicked() {
                     play_client_clicked = true;
                 }
             });
@@ -1399,14 +1459,11 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
                 res = MenuChange::Game(game);
             }
         }
-    } else if play_host_clicked {
-        if let MainMenuState::Main { ip_string } = mm_state {
-            let mp_state = MPState::init(ip_string.clone());
-            res = MenuChange::MultiplayerGame(mp_state);
-        }
     } else if play_client_clicked {
         if let MainMenuState::Main { ip_string } = mm_state {
-            let mp_state = MPState::init(ip_string.clone());
+            // let mp_state = MPState::init(ip_string.clone());
+            // let mp_state = MPState::init(ip_string.clone());
+            let mp_state = MPState::init("193.200.238.76:3333".to_string());
             res = MenuChange::MultiplayerGame(mp_state);
         }
     }
