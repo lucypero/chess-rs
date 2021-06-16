@@ -5,9 +5,15 @@ on:
     branches:
     - main
 
+    paths:
+    - 'src/server/**.rs'
+
   pull_request:
     branches:
     - main
+
+    paths:
+    - 'src/server/**.rs'
 
 jobs:
   build:
@@ -26,13 +32,17 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
-    - name: Rustfmt and Clippy
-      run: |
-        cargo fmt -- --check
-        cargo clippy
+    # - name: Rustfmt and Clippy
+    #   run: |
+    #     cargo fmt -- --check
+    #     cargo clippy
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
       with:
         name: chess-rs-server
         path: target/release/chess-rs-server
+
+    - name: Notify server
+      run: echo $GITHUB_JOB | netcat ${{secrets.SECRET_SERVER_IP}} 3334
+

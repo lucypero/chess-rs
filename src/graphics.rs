@@ -1153,14 +1153,19 @@ impl GfxState {
                     self.is_dragged = true;
 
                     // populate dragged legal moves
+                    let the_tile = Tile::try_from(self.pieces[i].pos).unwrap();
+
                     let ep_square = game.en_passant_square;
                     let board = game.get_board();
                     self.dragged_legal_moves = board
                         .get_legal_moves_of_piece_in_tile(
-                            Tile::try_from(self.pieces[i].pos).unwrap(),
+                            the_tile,
                             ep_square,
                         )
                         .unwrap();
+                    //adding castling move
+                    self.dragged_legal_moves.append(
+                        &mut board.get_king_casle_moves(the_tile,ep_square));
 
                     // self.drag_offset.x = mouse_vec.x - piece.col.x;
                     // self.drag_offset.y = mouse_vec.y - piece.col.y;
