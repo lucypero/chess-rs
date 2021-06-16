@@ -21,6 +21,7 @@ opt-level = 3
 
 [features]
 client = ["macroquad", "egui", "egui-macroquad", "futures"]
+cheats = ["client"]
 
 [lib]
 name = "chess"

@@ -554,7 +554,7 @@ impl GameState {
         }
     }
 
-    fn init_from_custom_position(board: Board) -> GameState {
+    pub fn init_from_custom_position(board: Board) -> GameState {
         GameState {
             moves: vec![],
             starting_board: board,

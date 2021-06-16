@@ -142,7 +142,9 @@ fn game_loop(game_state: &mut GameState) {
             MenuChange::None => {}
         },
         GameState::SinglePlayer(game, gfx_state) => {
-            let player_input = gfx_state.draw(game);
+            gfx_state.draw(game);
+            let player_input = gfx_state.consume_player_input_buffer();
+
             if let Some(pl_input) = player_input {
                 match pl_input {
                     graphics::PlayerInput::GoBack => {

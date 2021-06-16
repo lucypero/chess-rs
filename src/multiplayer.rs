@@ -168,11 +168,12 @@ impl MPState {
         if let Some(some_move) = the_move {
             println!("recieved a move omg {}", some_move.clone());
             if let Ok(()) = self.game.perform_move(some_move) {
-                self.gfx_state.move_was_made(&mut self.game);
+                self.gfx_state.move_was_made_from_other_client(&mut self.game);
             }
         }
 
-        let player_input = self.gfx_state.draw(&mut self.game);
+        self.gfx_state.draw(&mut self.game);
+        let player_input = self.gfx_state.consume_player_input_buffer();
 
         if let Some(input) = player_input {
             match input {
