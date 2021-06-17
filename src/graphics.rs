@@ -190,7 +190,9 @@ pub struct GfxState {
 
     locked_team: Option<ChessTeam>,
 
-    player_input_buffer: Option<PlayerInput>
+    player_input_buffer: Option<PlayerInput>,
+
+    is_board_locked: bool,
 }
 
 fn get_board_coord(tile: Tile) -> Coord {
@@ -284,7 +286,8 @@ impl GfxState {
             moves_str: vec![],
             is_board_flipped,
             locked_team,
-            player_input_buffer: None
+            player_input_buffer: None,
+            is_board_locked: false
         };
 
         state.sync_board(&mut game.get_board());
@@ -407,6 +410,7 @@ impl GfxState {
             if let Some(moves) = moves {
                 if moves.contains(&coord_to) {
                     self.is_promotion_ui_shown = true;
+                    self.is_board_locked = true;
                     self.promotion_move = the_move;
 
                     return Err(MoveError::PromotionPieceNotSpecified);
@@ -428,39 +432,35 @@ impl GfxState {
         // game.perform_move(the_move)
     }
 
-    fn draw_promotion(&mut self, game: &mut GameState) {
-        const W_W: f32 = 200.;
-        const W_H: f32 = 300.;
+    fn draw_promotion(&mut self, game: &mut GameState, egui_ctx: &CtxRef) {
 
         let mut pro_p = None;
 
-        widgets::Window::new(
-            hash!(),
-            vec2(
-                screen_width() / 2.0 - W_W / 2.0,
-                BOARD_PADDING as f32 + 100.0,
-            ),
-            vec2(W_W, W_H),
-        )
-        .movable(false)
-        .titlebar(false)
-        .ui(&mut *root_ui(), |ui| {
-            if ui.button(vec2(0.0, 0.0), "Queen") {
-                pro_p = Some(ChessPiece::Queen);
-            }
-            if ui.button(vec2(0.0, 20.0), "Bishop") {
-                pro_p = Some(ChessPiece::Bishop);
-            }
-            if ui.button(vec2(0.0, 40.0), "Knight") {
-                pro_p = Some(ChessPiece::Knight);
-            }
-            if ui.button(vec2(0.0, 60.0), "Rook") {
-                pro_p = Some(ChessPiece::Rook);
-            }
-        });
+        egui::Window::new("Promotion")
+            .resizable(false)
+            .title_bar(false)
+            .fixed_pos(egui::pos2(
+                    PIECE_DISPLAY_SIZE as f32 * 3. + BOARD_PADDING as f32,
+                    PIECE_DISPLAY_SIZE as f32 * 3. + BOARD_PADDING as f32,
+                    ))
+            .show(egui_ctx, |ui| {
+                if ui.add(egui::Button::new("Queen")).clicked() {
+                    pro_p = Some(ChessPiece::Queen);
+                }
+                if ui.add(egui::Button::new("Knight")).clicked() {
+                    pro_p = Some(ChessPiece::Knight);
+                }
+                if ui.add(egui::Button::new("Rook")).clicked() {
+                    pro_p = Some(ChessPiece::Rook);
+                }
+                if ui.add(egui::Button::new("Bishop")).clicked() {
+                    pro_p = Some(ChessPiece::Bishop);
+                }
+            });
 
         if let Some(p) = pro_p {
             self.is_promotion_ui_shown = false;
+            self.is_board_locked = false;
 
             if let Move::PieceMoveWithPromotion {
                 tile_from: _,
@@ -973,6 +973,10 @@ impl GfxState {
 
         egui_macroquad::ui(|egui_ctx| {
             self.draw_moves_ui(game, egui_ctx);
+
+            if self.is_promotion_ui_shown {
+                self.draw_promotion(game, egui_ctx);
+            }
         });
 
         self.draw_board();
@@ -1139,9 +1143,12 @@ impl GfxState {
             for (i, piece) in self.pieces.iter().enumerate() {
                 if piece.col.is_in_box(mouse_vec) {
                     // println!("clicked on box! dragged = true");
-                    if game.whose_turn() != piece.team {
+                    if game.whose_turn() != piece.team  || 
+                        self.is_board_locked
+                    {
                         continue;
                     }
+
 
                     // check if the team is not locked
                     if let Some(team) = self.locked_team {
@@ -1231,16 +1238,6 @@ impl GfxState {
         }
 
         self.handle_arrows_input();
-
-        //draw moves ui
-        // self.draw_moves_ui(game);
-
-        //test draw promoting ui
-        if self.is_promotion_ui_shown {
-            self.draw_promotion(game);
-        }
-
-        // println!("{}", macroquad::time::get_fps());
 
         egui_macroquad::draw();
     }
