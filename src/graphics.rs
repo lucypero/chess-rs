@@ -1414,6 +1414,7 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
 
     let mut res = MenuChange::None;
 
+    #[cfg(feature = "cheats")]
     let mut preset_position: Option<GameState> = None;
 
     clear_background(BACKGROUND_COLOR);
