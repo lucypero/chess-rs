@@ -961,6 +961,7 @@ impl GfxState {
 
         if input::is_key_pressed(KeyCode::F) {
             println!("fen output: {}", game.get_fen());
+            println!("pgn output: {}", game.get_pgn());
         }
 
         if input::is_key_pressed(KeyCode::Backspace) {

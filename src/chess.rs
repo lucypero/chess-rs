@@ -1046,6 +1046,26 @@ impl GameState {
 
         res
     }
+
+    pub fn get_pgn(&mut self) -> String {
+
+        let mut res = String::new();
+
+        let mut move_count = 1;
+
+        for i in 0..self.moves.len() {
+
+            if i % 2 == 0 {
+                res += format!("{}. ", move_count).as_str();
+                move_count+=1;
+            }
+
+            res += self.get_move_in_chess_notation(i).as_str();
+            res += " ";
+        }
+
+        res
+    }
 }
 
 // fn capitalize_coord_str(str: String) -> String {

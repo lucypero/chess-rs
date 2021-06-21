@@ -105,12 +105,6 @@ fn play_audio(stream_handle: &rodio::OutputStreamHandle, audio: Arc<[u8]>) {
     beep1.detach();
 }
 
-fn play_audio_2(stream_handle: &rodio::OutputStreamHandle, audio_c : Cursor<Arc<[u8]>>) {
-    let beep1 = stream_handle.play_once(audio_c).unwrap();
-    beep1.set_volume(1.);
-    beep1.detach();
-}
-
 #[macroquad::main(get_mq_conf)]
 async fn main() {
     // test scenarios
@@ -132,19 +126,6 @@ async fn main() {
     let a_p : Arc<[u8]> = audio_file.into();
     
     // let c = std::io::Cursor::new(a_p);
-
-    // let beep1 = stream_handle.play_once(c).unwrap();
-    // beep1.set_volume(1.);
-    // println!("Started beep1");
-
-    play_audio(&stream_handle, a_p.clone());
-
-
-    std::thread::sleep(std::time::Duration::from_millis(200));
-
-    play_audio(&stream_handle, a_p.clone());
-
-    // play_audio(&stream_handle, &audio_file);
 
     let mut game_state = GameState::init_mm();
 
