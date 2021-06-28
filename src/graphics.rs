@@ -473,8 +473,10 @@ impl GfxState {
 
             let res = game.perform_move(self.promotion_move);
 
+            // TODO(lucypero): put all this into a function that gets called every time a move happens
             if res.is_ok() {
                 self.move_was_made(game);
+                self.player_input_buffer = Some(PlayerInput::Move(self.promotion_move, res));
                 self.sync_board(&game.get_board());
             }
         }
