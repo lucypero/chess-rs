@@ -7,7 +7,12 @@ Uses [macroquad](https://github.com/not-fl3/macroquad) for graphics rendering an
 
 Piece set by [Madware](https://opengameart.org/content/madwares-chess-set)
 
-## goals
+## some features that it has right now
 
 - online multiplayer
+- FEN import/export
+- PGN export
+
+## goals
+
 - some kind of AI rival
