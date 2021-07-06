@@ -646,7 +646,8 @@ impl GameState {
         self.cached_current_board.as_ref().unwrap()
     }
 
-    pub fn perform_move(&mut self, mut chess_move: Move) -> Result<(), MoveError> {
+    //result bool: if it was a capture
+    pub fn perform_move(&mut self, mut chess_move: Move) -> Result<bool, MoveError> {
         //performs all move validation here. If it is legal,
         //    the move is added to self.moves
 
@@ -654,6 +655,8 @@ impl GameState {
         let ep_square = self.en_passant_square;
         let board = self.get_board();
         let mut was_capture_or_pawn_move = false;
+
+        let mut was_capture = false;
 
         match chess_move {
             Move::PieceMove {
@@ -763,6 +766,7 @@ impl GameState {
         let mut future_board = board.clone();
         if future_board.apply_move(chess_move) {
             was_capture_or_pawn_move = true;
+            was_capture = true;
         }
 
         // 2. in that board, check if the king is attacked
@@ -788,7 +792,7 @@ impl GameState {
             self.fifty_move_counter += 1;
         }
 
-        Ok(())
+        Ok(was_capture)
     }
 
     fn get_full_move_count(&self) -> u32 {

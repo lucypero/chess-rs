@@ -5,11 +5,56 @@ mod graphics;
 mod multiplayer;
 
 use crate::multiplayer::MPState;
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::io::Cursor;
+use std::rc::Rc;
 
 fn get_mq_conf() -> macroquad::prelude::Conf {
     graphics::get_mq_conf()
+}
+
+pub struct Audio {
+    stream : rodio::OutputStream,
+    stream_handle : rodio::OutputStreamHandle,
+    audio_data : HashMap<String, Arc<[u8]>>
+}
+
+impl Audio {
+
+    fn init() -> Audio {
+        let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+        // let file = File::open("assets/sounds/standard/Berserk.ogg").unwrap();
+
+        let mut audio_data : HashMap<String, Arc<[u8]>> = HashMap::new();
+
+        let paths = std::fs::read_dir("assets/sounds/standard/").unwrap();
+
+        for path in paths {
+            let p = path.unwrap();
+            let p_file_name = p.file_name();
+            let file_name = std::path::Path::new(&p_file_name).file_stem().unwrap().to_str().unwrap();
+            let audio_file: Vec<u8> = std::fs::read(p.path()).unwrap();
+            audio_data.insert(file_name.to_string(), audio_file.into());
+        }
+
+        Audio {
+            stream,
+            stream_handle,
+            audio_data
+        }
+    }
+
+    fn play_sound(&self, name: &str) {
+
+    // play_audio(&stream_handle, audio_arr.get("Move").unwrap().clone());
+// fn play_audio(stream_handle: &rodio::OutputStreamHandle, audio: Arc<[u8]>)
+        //getting arc
+        let audio = self.audio_data.get(name).unwrap().clone();
+        let c = std::io::Cursor::new(audio);
+        let beep1 = self.stream_handle.play_once(c).unwrap();
+        beep1.set_volume(1.);
+        beep1.detach();
+    }
 }
 
 struct Args {
@@ -64,7 +109,7 @@ fn parse_args(args: Vec<String>) -> Args {
 }
 
 pub enum MainMenuState {
-    Main { ip_string: String },
+    Main,
     PlayMenu { fen_string: String },
     OptionsMenu,
 }
@@ -79,13 +124,11 @@ impl GameState {
     //called every time game state is switched
 
     fn init_mm() -> GameState {
-        GameState::MainMenu(MainMenuState::Main {
-            ip_string: "0.0.0.0:3333".to_string(),
-        })
+        GameState::MainMenu(MainMenuState::Main{})
     }
 
-    fn swap_to_in_game(&mut self, mut game: chess::GameState) {
-        let gfx_state = graphics::GfxState::init(&mut game, None);
+    fn swap_to_in_game(&mut self, mut game: chess::GameState, audio: Rc<Audio>) {
+        let gfx_state = graphics::GfxState::init(&mut game, None, audio);
         *self = GameState::SinglePlayer(game, gfx_state);
     }
 
@@ -96,13 +139,6 @@ impl GameState {
     fn swap_to_multiplayer(&mut self, mp_state: MPState) {
         *self = GameState::MultiplayerSession(mp_state);
     }
-}
-
-fn play_audio(stream_handle: &rodio::OutputStreamHandle, audio: Arc<[u8]>) {
-    let c = std::io::Cursor::new(audio);
-    let beep1 = stream_handle.play_once(c).unwrap();
-    beep1.set_volume(1.);
-    beep1.detach();
 }
 
 #[macroquad::main(get_mq_conf)]
@@ -120,17 +156,24 @@ async fn main() {
     //     chess::GameState::init()
     // };
 
-    let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
-    // let file = File::open("assets/sounds/standard/Berserk.ogg").unwrap();
-    let audio_file: Vec<u8> = std::fs::read("assets/sounds/standard/Berserk.ogg").unwrap();
-    let a_p : Arc<[u8]> = audio_file.into();
+
+    // audio_arr.insert(AudioFiles::Move, audio_file.into());
+
+    // #[derive(PartialEq, Eq, Hash)]
+    // enum AudioFiles {
+    //    Move,
+    //    Draw,
+    //    Defeat
+    // }
+
+    let audio = Audio::init();
+    let audio_p = Rc::new(audio);
     
     // let c = std::io::Cursor::new(a_p);
-
     let mut game_state = GameState::init_mm();
 
     loop {
-        game_loop(&mut game_state);
+        game_loop(&mut game_state, audio_p.clone());
         macroquad::prelude::next_frame().await;
     }
 }
@@ -143,14 +186,14 @@ pub enum MenuChange {
 }
 
 // async fn game_loop(game: &mut GameState, gfx_state: &mut graphics::GfxState) {
-fn game_loop(game_state: &mut GameState) {
+fn game_loop(game_state: &mut GameState, audio: Rc<Audio>) {
     match game_state {
-        GameState::MainMenu(mm_s) => match graphics::draw_main_menu(mm_s) {
+        GameState::MainMenu(mm_s) => match graphics::draw_main_menu(mm_s, audio.clone()) {
             MenuChange::Menu(menu) => {
                 *game_state = GameState::MainMenu(menu);
             }
             MenuChange::Game(gs) => {
-                game_state.swap_to_in_game(gs);
+                game_state.swap_to_in_game(gs, audio.clone());
             }
             MenuChange::MultiplayerGame(mp_state) => {
                 game_state.swap_to_multiplayer(mp_state);

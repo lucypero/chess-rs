@@ -10,6 +10,7 @@ use egui::CtxRef;
 use futures::executor::block_on;
 use macroquad::input;
 use macroquad::prelude::*;
+use std::rc::Rc;
 
 use macroquad::ui::{
     hash,
@@ -20,6 +21,7 @@ use macroquad::ui::{
 
 use crate::multiplayer::MPState;
 use crate::MainMenuState;
+use crate::Audio;
 
 // player input that code outside graphics may be interested in.
 // input is caught by this graphics module but it won't try to modify the game state
@@ -28,7 +30,7 @@ use crate::MainMenuState;
 #[derive(Clone)]
 pub enum PlayerInput {
     GoBack,
-    Move(Move, Result<(), MoveError>),
+    Move(Move, Result<bool, MoveError>),
 }
 
 // use crate::GameState as ProgramState;
@@ -171,28 +173,21 @@ pub struct GfxState {
     coord_on_right_click_press: Option<Coord>,
     coord_on_right_click_release: Option<Coord>,
     arrows: Vec<Arrow>,
-
     //viewed move (could be any move, not just the last one)
     viewed_move: usize,
-
     //promotion
     is_promotion_ui_shown: bool,
     promotion_move: Move,
-
     //ui styles
     skin1: Skin,
-
     //cache moves as strings
     moves_str: Vec<String>,
-
     //is board flipped (white or black perspective)
     is_board_flipped: bool,
-
     locked_team: Option<ChessTeam>,
-
     player_input_buffer: Option<PlayerInput>,
-
     is_board_locked: bool,
+    audio: Rc<Audio>
 }
 
 fn get_board_coord(tile: Tile) -> Coord {
@@ -204,7 +199,7 @@ fn get_board_coord(tile: Tile) -> Coord {
 impl GfxState {
     // team: chess team that the client is playing as
     //   used for flipping the board and to lock input for the other team
-    pub fn init(game: &mut GameState, team: Option<chess::ChessTeam>) -> GfxState {
+    pub fn init(game: &mut GameState, team: Option<chess::ChessTeam>, audio: Rc<Audio>) -> GfxState {
         let piece_tex_index = 0;
         let board_tex_index = 0;
 
@@ -287,7 +282,8 @@ impl GfxState {
             is_board_flipped,
             locked_team,
             player_input_buffer: None,
-            is_board_locked: false
+            is_board_locked: false,
+            audio
         };
 
         state.sync_board(&mut game.get_board());
@@ -478,6 +474,11 @@ impl GfxState {
                 self.move_was_made(game);
                 self.player_input_buffer = Some(PlayerInput::Move(self.promotion_move, res));
                 self.sync_board(&game.get_board());
+                if res.unwrap() {
+                    self.audio.play_sound("Capture");
+                } else {
+                    self.audio.play_sound("Move");
+                }
             }
         }
     }
@@ -684,9 +685,15 @@ impl GfxState {
         self.handle_end_state(game);
     }
 
-    pub fn move_was_made_from_other_client(&mut self, game: &mut GameState) {
+    pub fn move_was_made_from_other_client(&mut self, game: &mut GameState, res: bool) {
         self.move_was_made(game);
         self.sync_board(&game.get_board());
+        if res {
+            self.audio.play_sound("Capture");
+        } else {
+            self.audio.play_sound("Move");
+        }
+
     }
 
     fn clear_arrows(&mut self) {
@@ -1117,6 +1124,12 @@ impl GfxState {
                     if move_res.is_ok() {
                         self.move_was_made(game);
                         self.player_input_buffer = Some(PlayerInput::Move(the_move, move_res));
+
+                        if move_res.unwrap() {
+                            self.audio.play_sound("Capture");
+                        } else {
+                            self.audio.play_sound("Move");
+                        }
                     }
                 }
 
@@ -1409,7 +1422,7 @@ impl Piece {
     }
 }
 
-pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
+pub fn draw_main_menu(mm_state: &mut MainMenuState, audio: Rc<Audio>) -> MenuChange {
     let mut play_button_clicked = false;
     let mut play_fen_clicked = false;
 
@@ -1423,10 +1436,8 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
     clear_background(BACKGROUND_COLOR);
 
     //listen for keyboard events 
-
-
     egui_macroquad::ui(|egui_ctx| match mm_state {
-        MainMenuState::Main { ip_string: _ } => {
+        MainMenuState::Main {} => {
             egui::Window::new("Main Menu!").show(egui_ctx, |ui| {
                 if ui.add(egui::Button::new("Play against yourself")).clicked() {
                     res = MenuChange::Menu(MainMenuState::PlayMenu {
@@ -1466,6 +1477,20 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
                             preset_position = Some(chess::parse_fen("3r3r/1K1k4/8/R7/4Q2Q/8/8/R6Q w - - 0 54".to_string()).unwrap())
                         }
                     });
+
+                egui::CollapsingHeader::new("Play Sounds")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        let paths = std::fs::read_dir("assets/sounds/standard/").unwrap();
+
+                        for path in paths {
+                            let p = path.unwrap().file_name();
+                            let file_name = std::path::Path::new(&p).file_stem().unwrap().to_str().unwrap();
+                            if ui.add(egui::Button::new(&file_name)).clicked() {
+                                audio.play_sound(file_name);
+                            }
+                        }
+                    });
             });
         }
         MainMenuState::OptionsMenu => {}
@@ -1483,10 +1508,10 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState) -> MenuChange {
             }
         }
     } else if play_client_clicked {
-        if let MainMenuState::Main { ip_string: _ } = mm_state {
+        if let MainMenuState::Main {} = mm_state {
             // let mp_state = MPState::init(ip_string.clone());
             // let mp_state = MPState::init(ip_string.clone());
-            let mp_state = MPState::init("193.200.238.76:3333".to_string());
+            let mp_state = MPState::init("193.200.238.76:3333".to_string(), audio);
             res = MenuChange::MultiplayerGame(mp_state);
         }
     } else if preset_position.is_some() {

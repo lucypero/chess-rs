@@ -5,9 +5,11 @@ use std::net::TcpStream;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
+use std::rc::Rc;
 
 use chess::{ChessPiece, ChessTeam, GameState, Move, Tile};
 
+use crate::Audio;
 use crate::graphics::{GfxState, PlayerInput};
 
 pub struct MPState {
@@ -26,7 +28,7 @@ pub enum Message {
 
 impl MPState {
     //connect to server and wait for game start
-    pub fn init(ip: String) -> MPState {
+    pub fn init(ip: String, audio: Rc<Audio>) -> MPState {
         let mut game = GameState::init();
         println!("ip {}", ip);
 
@@ -125,7 +127,7 @@ impl MPState {
             thread::sleep(Duration::from_millis(200));
         }
 
-        let gfx_state = GfxState::init(&mut game, Some(team));
+        let gfx_state = GfxState::init(&mut game, Some(team), audio);
 
         let game = chess::GameState::init();
 
@@ -167,8 +169,8 @@ impl MPState {
         let the_move = self.recieve_move_maybe();
         if let Some(some_move) = the_move {
             println!("recieved a move omg {}", some_move.clone());
-            if let Ok(()) = self.game.perform_move(some_move) {
-                self.gfx_state.move_was_made_from_other_client(&mut self.game);
+            if let Ok(res) = self.game.perform_move(some_move) {
+                self.gfx_state.move_was_made_from_other_client(&mut self.game, res);
             }
         }
 
@@ -181,7 +183,7 @@ impl MPState {
                     res = true;
                 }
                 PlayerInput::Move(chess_move, move_res) => {
-                    if let Ok(()) = move_res {
+                    if let Ok(res) = move_res {
                         println!("sent move {}", chess_move.clone());
                         self.send_move(chess_move);
                     }
