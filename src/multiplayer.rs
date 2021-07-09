@@ -168,7 +168,6 @@ impl MPState {
 
         let the_move = self.recieve_move_maybe();
         if let Some(some_move) = the_move {
-            println!("recieved a move omg {}", some_move.clone());
             if let Ok(res) = self.game.perform_move(some_move) {
                 self.gfx_state.move_was_made_from_other_client(&mut self.game, res);
             }
@@ -183,8 +182,7 @@ impl MPState {
                     res = true;
                 }
                 PlayerInput::Move(chess_move, move_res) => {
-                    if let Ok(res) = move_res {
-                        println!("sent move {}", chess_move.clone());
+                    if let Ok(_res) = move_res {
                         self.send_move(chess_move);
                     }
                 }

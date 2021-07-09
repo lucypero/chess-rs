@@ -899,7 +899,7 @@ impl GameState {
                             specif_str.push(rank_char);
                         }
 
-                        specif_str + &piece_str + capture_str + tile_to_str
+                         piece_str + &specif_str + capture_str + tile_to_str
                     }
                 }
             }
