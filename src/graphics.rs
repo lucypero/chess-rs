@@ -37,7 +37,7 @@ pub enum PlayerInput {
 
 const PIECE_DISPLAY_SIZE: u32 = 80;
 const BOARD_PADDING: u32 = 30;
-const MOVES_LIST_WIDTH: u32 = 200;
+const MOVES_LIST_WIDTH: u32 = 150;
 
 // Color used for legal move indicators, arrows, tile where the piece will end up, etc...
 
@@ -145,7 +145,7 @@ pub fn get_mq_conf() -> Conf {
         window_width: (PIECE_DISPLAY_SIZE * 8
             + BOARD_PADDING * 2
             + MOVES_LIST_WIDTH
-            + BOARD_PADDING) as i32,
+            + BOARD_PADDING * 2) as i32,
         window_height: (PIECE_DISPLAY_SIZE * 8 + BOARD_PADDING * 2) as i32,
         fullscreen: false,
         ..Default::default()
@@ -506,6 +506,7 @@ impl GfxState {
         // TODO(lucypero): this is crashing the game when you promote a pawn..
 
         const MOVE_NO_W: f32 = 30.;
+        const PIECE_HEIGHT: f32 = 8.;
 
         let group_count = (game.move_count() + 1) / 2;
         let move_count = game.move_count();
@@ -516,18 +517,23 @@ impl GfxState {
             //         PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
             //         BOARD_PADDING as f32,
             //     ))
-            // .fixed_size(egui::vec2(MOVES_LIST_WIDTH as f32 + 2000.,
-            //         PIECE_DISPLAY_SIZE as f32 * 8.))
+            .fixed_size(egui::vec2(MOVES_LIST_WIDTH as f32,
+                    PIECE_DISPLAY_SIZE as f32 * PIECE_HEIGHT))
             .fixed_pos(egui::pos2(
                 PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
                 BOARD_PADDING as f32,
             ))
+            // .fixed_size(egui::pos2(
+            //     PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
+            //     BOARD_PADDING as f32,
+            // ))
             .resizable(false)
             .title_bar(false)
+            .scroll(true)
             .show(egui_ctx, |ui| {
                 ui.set_min_size(egui::vec2(
                     MOVES_LIST_WIDTH as f32,
-                    PIECE_DISPLAY_SIZE as f32 * 8.,
+                    PIECE_DISPLAY_SIZE as f32 * PIECE_HEIGHT,
                 ));
 
                 egui::Grid::new("my_grid")
@@ -535,6 +541,7 @@ impl GfxState {
                     // .min_col_width(self.min_col_width)
                     // .max_col_width(self.max_col_width)
                     .show(ui, |ui| {
+
                         for i in 1..=group_count {
                             ui.label(&format!("{}", i));
                             for j in 0..=1 {
@@ -551,54 +558,6 @@ impl GfxState {
                         }
                     });
             });
-    }
-
-    fn draw_moves_ui_old(&mut self, game: &mut GameState) {
-        const MOVE_NO_W: f32 = 30.;
-
-        root_ui().push_skin(&self.skin1);
-        widgets::Window::new(
-            hash!(),
-            vec2(
-                PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
-                BOARD_PADDING as f32,
-            ),
-            vec2(MOVES_LIST_WIDTH as f32, PIECE_DISPLAY_SIZE as f32 * 8.),
-        )
-        .movable(false)
-        .titlebar(false)
-        .ui(&mut *root_ui(), |ui| {
-            ui.label(None, "Moves");
-
-            let group_count = (game.move_count() + 1) / 2;
-            let move_count = game.move_count();
-
-            for i in 1..=group_count {
-                Group::new(hash!("moves", i), vec2(MOVES_LIST_WIDTH as f32, 30.))
-                    .highlight(false)
-                    .ui(ui, |ui| {
-                        ui.label(None, &format!("{}", i));
-
-                        for j in 0..=1 {
-                            let move_i = (i as i32 * 2 + (j as i32 - 1)) as usize - 1;
-                            if move_count > move_i
-                                && ui.button(
-                                    Vec2::new(
-                                        MOVE_NO_W
-                                            + j as f32
-                                                * ((MOVES_LIST_WIDTH as f32 - MOVE_NO_W) / 2.),
-                                        0.,
-                                    ),
-                                    self.moves_str[move_i].as_str(),
-                                )
-                            {
-                                self.show_move(game, move_i + 1);
-                            }
-                        }
-                    });
-            }
-        });
-        root_ui().pop_skin();
     }
 
     fn draw_legal_move_tiles_at(&self, coords: &Vec<Coord>) {
