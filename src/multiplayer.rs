@@ -2,15 +2,15 @@ use bincode::Options;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
-use std::rc::Rc;
 
 use chess::{ChessPiece, ChessTeam, GameState, Move, Tile};
 
-use crate::Audio;
 use crate::graphics::{GfxState, PlayerInput};
+use crate::Audio;
 
 pub struct MPState {
     team: ChessTeam,
@@ -118,7 +118,7 @@ impl MPState {
                         println!("recieved move! but game didn's start yet!?? {:?}", the_move);
                     }
                 },
-                Err(mpsc::TryRecvError::Empty) => {},
+                Err(mpsc::TryRecvError::Empty) => {}
                 Err(_) => {
                     panic!("recv error");
                 }
@@ -169,7 +169,8 @@ impl MPState {
         let the_move = self.recieve_move_maybe();
         if let Some(some_move) = the_move {
             if let Ok(res) = self.game.perform_move(some_move) {
-                self.gfx_state.move_was_made_from_other_client(&mut self.game, res);
+                self.gfx_state
+                    .move_was_made_from_other_client(&mut self.game, res);
             }
         }
 

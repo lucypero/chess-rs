@@ -7,33 +7,36 @@ mod multiplayer;
 
 use crate::multiplayer::MPState;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::rc::Rc;
+use std::sync::Arc;
 
 fn get_mq_conf() -> macroquad::prelude::Conf {
     graphics::get_mq_conf()
 }
 
 pub struct Audio {
-    stream : rodio::OutputStream,
-    stream_handle : rodio::OutputStreamHandle,
-    audio_data : HashMap<String, Arc<[u8]>>
+    stream: rodio::OutputStream,
+    stream_handle: rodio::OutputStreamHandle,
+    audio_data: HashMap<String, Arc<[u8]>>,
 }
 
 impl Audio {
-
     fn init() -> Audio {
         let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
         // let file = File::open("assets/sounds/standard/Berserk.ogg").unwrap();
 
-        let mut audio_data : HashMap<String, Arc<[u8]>> = HashMap::new();
+        let mut audio_data: HashMap<String, Arc<[u8]>> = HashMap::new();
 
         let paths = std::fs::read_dir("assets/sounds/standard/").unwrap();
 
         for path in paths {
             let p = path.unwrap();
             let p_file_name = p.file_name();
-            let file_name = std::path::Path::new(&p_file_name).file_stem().unwrap().to_str().unwrap();
+            let file_name = std::path::Path::new(&p_file_name)
+                .file_stem()
+                .unwrap()
+                .to_str()
+                .unwrap();
             let audio_file: Vec<u8> = std::fs::read(p.path()).unwrap();
             audio_data.insert(file_name.to_string(), audio_file.into());
         }
@@ -41,14 +44,13 @@ impl Audio {
         Audio {
             stream,
             stream_handle,
-            audio_data
+            audio_data,
         }
     }
 
     fn play_sound(&self, name: &str) {
-
-    // play_audio(&stream_handle, audio_arr.get("Move").unwrap().clone());
-// fn play_audio(stream_handle: &rodio::OutputStreamHandle, audio: Arc<[u8]>)
+        // play_audio(&stream_handle, audio_arr.get("Move").unwrap().clone());
+        // fn play_audio(stream_handle: &rodio::OutputStreamHandle, audio: Arc<[u8]>)
         //getting arc
         let audio = self.audio_data.get(name).unwrap().clone();
         let c = std::io::Cursor::new(audio);
@@ -125,7 +127,7 @@ impl GameState {
     //called every time game state is switched
 
     fn init_mm() -> GameState {
-        GameState::MainMenu(MainMenuState::Main{})
+        GameState::MainMenu(MainMenuState::Main {})
     }
 
     fn swap_to_in_game(&mut self, mut game: chess::GameState, audio: Rc<Audio>) {
@@ -157,7 +159,6 @@ async fn main() {
     //     chess::GameState::init()
     // };
 
-
     // audio_arr.insert(AudioFiles::Move, audio_file.into());
 
     // #[derive(PartialEq, Eq, Hash)]
@@ -169,7 +170,7 @@ async fn main() {
 
     let audio = Audio::init();
     let audio_p = Rc::new(audio);
-    
+
     // let c = std::io::Cursor::new(a_p);
     let mut game_state = GameState::init_mm();
 

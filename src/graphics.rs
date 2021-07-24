@@ -12,14 +12,17 @@ use macroquad::input;
 use macroquad::prelude::*;
 use std::rc::Rc;
 
+use clipboard::ClipboardContext;
+use clipboard::ClipboardProvider;
+
 use macroquad::ui::{
     root_ui,
     Skin, // Drag, Ui,
 };
 
 use crate::multiplayer::MPState;
-use crate::MainMenuState;
 use crate::Audio;
+use crate::MainMenuState;
 
 // player input that code outside graphics may be interested in.
 // input is caught by this graphics module but it won't try to modify the game state
@@ -36,6 +39,10 @@ pub enum PlayerInput {
 const PIECE_DISPLAY_SIZE: u32 = 80;
 const BOARD_PADDING: u32 = 30;
 const MOVES_LIST_WIDTH: u32 = 150;
+
+const WINDOW_WIDTH: i32 =
+    (PIECE_DISPLAY_SIZE * 8 + BOARD_PADDING * 2 + MOVES_LIST_WIDTH + BOARD_PADDING * 2) as i32;
+const WINDOW_HEIGHT: i32 = (PIECE_DISPLAY_SIZE * 8 + BOARD_PADDING * 2) as i32;
 
 // Color used for legal move indicators, arrows, tile where the piece will end up, etc...
 
@@ -140,11 +147,8 @@ const BOARD_TEXTURES: [&str; 34] = [
 pub fn get_mq_conf() -> Conf {
     Conf {
         window_title: String::from("Chess-rs"),
-        window_width: (PIECE_DISPLAY_SIZE * 8
-            + BOARD_PADDING * 2
-            + MOVES_LIST_WIDTH
-            + BOARD_PADDING * 2) as i32,
-        window_height: (PIECE_DISPLAY_SIZE * 8 + BOARD_PADDING * 2) as i32,
+        window_width: WINDOW_WIDTH,
+        window_height: WINDOW_HEIGHT,
         fullscreen: false,
         ..Default::default()
     }
@@ -185,7 +189,8 @@ pub struct GfxState {
     locked_team: Option<ChessTeam>,
     player_input_buffer: Option<PlayerInput>,
     is_board_locked: bool,
-    audio: Rc<Audio>
+    audio: Rc<Audio>,
+    options_visible: bool,
 }
 
 fn get_board_coord(tile: Tile) -> Coord {
@@ -197,7 +202,11 @@ fn get_board_coord(tile: Tile) -> Coord {
 impl GfxState {
     // team: chess team that the client is playing as
     //   used for flipping the board and to lock input for the other team
-    pub fn init(game: &mut GameState, team: Option<chess::ChessTeam>, audio: Rc<Audio>) -> GfxState {
+    pub fn init(
+        game: &mut GameState,
+        team: Option<chess::ChessTeam>,
+        audio: Rc<Audio>,
+    ) -> GfxState {
         let piece_tex_index = 0;
         let board_tex_index = 0;
 
@@ -283,7 +292,8 @@ impl GfxState {
             locked_team,
             player_input_buffer: None,
             is_board_locked: false,
-            audio
+            audio,
+            options_visible: false,
         };
 
         state.sync_board(&mut game.get_board());
@@ -429,16 +439,15 @@ impl GfxState {
     }
 
     fn draw_promotion(&mut self, game: &mut GameState, egui_ctx: &CtxRef) {
-
         let mut pro_p = None;
 
         egui::Window::new("Promotion")
             .resizable(false)
             .title_bar(false)
             .fixed_pos(egui::pos2(
-                    PIECE_DISPLAY_SIZE as f32 * 3. + BOARD_PADDING as f32,
-                    PIECE_DISPLAY_SIZE as f32 * 3. + BOARD_PADDING as f32,
-                    ))
+                PIECE_DISPLAY_SIZE as f32 * 3. + BOARD_PADDING as f32,
+                PIECE_DISPLAY_SIZE as f32 * 3. + BOARD_PADDING as f32,
+            ))
             .show(egui_ctx, |ui| {
                 if ui.add(egui::Button::new("Queen")).clicked() {
                     pro_p = Some(ChessPiece::Queen);
@@ -500,11 +509,68 @@ impl GfxState {
         }
     }
 
-    fn draw_moves_ui(&mut self, game: &mut GameState, egui_ctx: &CtxRef) {
-        // TODO(lucypero): this is crashing the game when you promote a pawn..
+    fn draw_options_button(&mut self, egui_ctx: &CtxRef) {
+        const PIECE_HEIGHT: f32 = 7.;
 
+        egui::Window::new("Options_button")
+            .fixed_size(egui::vec2(
+                MOVES_LIST_WIDTH as f32,
+                PIECE_DISPLAY_SIZE as f32 * PIECE_HEIGHT,
+            ))
+            .fixed_pos(egui::pos2(
+                PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
+                BOARD_PADDING as f32 + PIECE_DISPLAY_SIZE as f32 * 7. + 30.,
+            ))
+            .resizable(false)
+            .title_bar(false)
+            .show(egui_ctx, |ui| {
+                if ui.add(egui::Button::new("Options")).clicked() {
+                    println!("options pressed");
+                    self.options_visible = true;
+                }
+            });
+    }
+
+    fn draw_options_ui(&mut self, game: &mut GameState, egui_ctx: &CtxRef) {
+        let mut pgn = game.get_pgn();
+        let pgn_2 = pgn.clone();
+
+        let mut open: bool = true;
+
+        egui::Window::new("Options")
+            .resizable(true)
+            .collapsible(false)
+            .title_bar(true)
+            .min_width(300.)
+            .open(&mut open)
+            .default_pos(egui::pos2(
+                WINDOW_WIDTH as f32 / 2. - 300.,
+                WINDOW_HEIGHT as f32 / 2.,
+            ))
+            .show(egui_ctx, move |ui| {
+                ui.set_min_size(egui::vec2(300., 200.));
+                egui::CollapsingHeader::new("See PGN")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        ui.vertical_centered(|ui| {
+                            let text_field = egui::TextEdit::multiline(&mut pgn).enabled(false);
+                            ui.add(text_field);
+                            if ui.add(egui::Button::new("Copy to clipboard!")).clicked() {
+                                let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+                                ctx.set_contents(pgn_2).unwrap();
+                            }
+                        });
+                    });
+            });
+
+        if !open {
+            self.options_visible = false;
+        }
+    }
+
+    fn draw_moves_ui(&mut self, game: &mut GameState, egui_ctx: &CtxRef) {
         const MOVE_NO_W: f32 = 30.;
-        const PIECE_HEIGHT: f32 = 8.;
+        const PIECE_HEIGHT: f32 = 7.;
 
         let group_count = (game.move_count() + 1) / 2;
         let move_count = game.move_count();
@@ -515,8 +581,10 @@ impl GfxState {
             //         PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
             //         BOARD_PADDING as f32,
             //     ))
-            .fixed_size(egui::vec2(MOVES_LIST_WIDTH as f32,
-                    PIECE_DISPLAY_SIZE as f32 * PIECE_HEIGHT))
+            .fixed_size(egui::vec2(
+                MOVES_LIST_WIDTH as f32,
+                PIECE_DISPLAY_SIZE as f32 * PIECE_HEIGHT,
+            ))
             .fixed_pos(egui::pos2(
                 PIECE_DISPLAY_SIZE as f32 * 8. + BOARD_PADDING as f32 * 2.,
                 BOARD_PADDING as f32,
@@ -539,7 +607,6 @@ impl GfxState {
                     // .min_col_width(self.min_col_width)
                     // .max_col_width(self.max_col_width)
                     .show(ui, |ui| {
-
                         for i in 1..=group_count {
                             ui.label(&format!("{}", i));
                             for j in 0..=1 {
@@ -650,7 +717,6 @@ impl GfxState {
         } else {
             self.audio.play_sound("Move");
         }
-
     }
 
     fn clear_arrows(&mut self) {
@@ -922,7 +988,6 @@ impl GfxState {
     }
 
     pub fn draw(&mut self, game: &mut GameState) {
-
         clear_background(BACKGROUND_COLOR);
 
         if input::is_key_pressed(KeyCode::F) {
@@ -931,7 +996,7 @@ impl GfxState {
         }
 
         if input::is_key_pressed(KeyCode::Backspace) {
-            self.player_input_buffer =  Some(PlayerInput::GoBack);
+            self.player_input_buffer = Some(PlayerInput::GoBack);
         }
 
         if input::is_key_pressed(KeyCode::T) {
@@ -940,9 +1005,14 @@ impl GfxState {
 
         egui_macroquad::ui(|egui_ctx| {
             self.draw_moves_ui(game, egui_ctx);
+            self.draw_options_button(egui_ctx);
 
             if self.is_promotion_ui_shown {
                 self.draw_promotion(game, egui_ctx);
+            }
+
+            if self.options_visible {
+                self.draw_options_ui(game, egui_ctx);
             }
         });
 
@@ -1116,12 +1186,9 @@ impl GfxState {
             for (i, piece) in self.pieces.iter().enumerate() {
                 if piece.col.is_in_box(mouse_vec) {
                     // println!("clicked on box! dragged = true");
-                    if game.whose_turn() != piece.team  || 
-                        self.is_board_locked
-                    {
+                    if game.whose_turn() != piece.team || self.is_board_locked {
                         continue;
                     }
-
 
                     // check if the team is not locked
                     if let Some(team) = self.locked_team {
@@ -1138,14 +1205,11 @@ impl GfxState {
                     let ep_square = game.en_passant_square;
                     let board = game.get_board();
                     self.dragged_legal_moves = board
-                        .get_legal_moves_of_piece_in_tile(
-                            the_tile,
-                            ep_square,
-                        )
+                        .get_legal_moves_of_piece_in_tile(the_tile, ep_square)
                         .unwrap();
                     //adding castling move
-                    self.dragged_legal_moves.append(
-                        &mut board.get_king_casle_moves(the_tile,ep_square));
+                    self.dragged_legal_moves
+                        .append(&mut board.get_king_casle_moves(the_tile, ep_square));
 
                     // self.drag_offset.x = mouse_vec.x - piece.col.x;
                     // self.drag_offset.y = mouse_vec.y - piece.col.y;
@@ -1392,7 +1456,7 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState, audio: Rc<Audio>) -> MenuCha
 
     clear_background(BACKGROUND_COLOR);
 
-    //listen for keyboard events 
+    //listen for keyboard events
     egui_macroquad::ui(|egui_ctx| match mm_state {
         MainMenuState::Main {} => {
             egui::Window::new("Main Menu!").show(egui_ctx, |ui| {
@@ -1402,7 +1466,10 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState, audio: Rc<Audio>) -> MenuCha
                     });
                 }
                 // ui.add(egui::TextEdit::singleline(ip_string));
-                if ui.add(egui::Button::new("Look for a player online")).clicked() {
+                if ui
+                    .add(egui::Button::new("Look for a player online"))
+                    .clicked()
+                {
                     play_client_clicked = true;
                 }
             });
@@ -1422,16 +1489,25 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState, audio: Rc<Audio>) -> MenuCha
             });
 
             #[cfg(feature = "cheats")]
-            egui::Window::new("Cheats").show(egui_ctx,|ui| {
-
+            egui::Window::new("Cheats").show(egui_ctx, |ui| {
                 egui::CollapsingHeader::new("Play some preset positions")
                     .default_open(false)
                     .show(ui, |ui| {
                         if ui.add(egui::Button::new("Promotion Test")).clicked() {
-                            preset_position = Some(chess::parse_fen("k4r2/3PP3/8/8/2p3p1/7P/1P1pp3/K7 w - - 0 1".to_string()).unwrap())
+                            preset_position = Some(
+                                chess::parse_fen(
+                                    "k4r2/3PP3/8/8/2p3p1/7P/1P1pp3/K7 w - - 0 1".to_string(),
+                                )
+                                .unwrap(),
+                            )
                         }
                         if ui.add(egui::Button::new("Notation Test")).clicked() {
-                            preset_position = Some(chess::parse_fen("3r3r/1K1k4/8/R7/4Q2Q/8/8/R6Q w - - 0 54".to_string()).unwrap())
+                            preset_position = Some(
+                                chess::parse_fen(
+                                    "3r3r/1K1k4/8/R7/4Q2Q/8/8/R6Q w - - 0 54".to_string(),
+                                )
+                                .unwrap(),
+                            )
                         }
                     });
 
@@ -1442,7 +1518,11 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState, audio: Rc<Audio>) -> MenuCha
 
                         for path in paths {
                             let p = path.unwrap().file_name();
-                            let file_name = std::path::Path::new(&p).file_stem().unwrap().to_str().unwrap();
+                            let file_name = std::path::Path::new(&p)
+                                .file_stem()
+                                .unwrap()
+                                .to_str()
+                                .unwrap();
                             if ui.add(egui::Button::new(&file_name)).clicked() {
                                 audio.play_sound(file_name);
                             }
