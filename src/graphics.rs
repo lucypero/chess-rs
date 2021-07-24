@@ -13,9 +13,7 @@ use macroquad::prelude::*;
 use std::rc::Rc;
 
 use macroquad::ui::{
-    hash,
     root_ui,
-    widgets::{self, Group},
     Skin, // Drag, Ui,
 };
 
@@ -261,6 +259,8 @@ impl GfxState {
             }
         }
 
+        audio.play_sound("GenericNotify");
+
         let mut state = GfxState {
             dragged_piece_i,
             is_dragged,
@@ -490,13 +490,11 @@ impl GfxState {
                     "It's checkmate! {} has won!",
                     game.whose_turn().the_other_one()
                 );
-                // TODO(lucypero): Yeah I panic just to end the program hah
-                // panic!("nothing went wrong, it's just that the game ended");
+                self.audio.play_sound("GenericNotify");
             }
             GameEndState::Draw => {
                 println!("It's a draw!");
-                // TODO(lucypero): Yeah I panic just to end the program hah
-                // panic!("nothing went wrong, it's just that the game ended");
+                self.audio.play_sound("GenericNotify");
             }
             GameEndState::Running => {}
         }
@@ -1468,8 +1466,6 @@ pub fn draw_main_menu(mm_state: &mut MainMenuState, audio: Rc<Audio>) -> MenuCha
         }
     } else if play_client_clicked {
         if let MainMenuState::Main {} = mm_state {
-            // let mp_state = MPState::init(ip_string.clone());
-            // let mp_state = MPState::init(ip_string.clone());
             let mp_state = MPState::init("193.200.238.76:3333".to_string(), audio);
             res = MenuChange::MultiplayerGame(mp_state);
         }
