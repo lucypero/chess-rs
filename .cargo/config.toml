@@ -1,3 +1,4 @@
 [alias]
 r = ["run", "--features", "client,cheats", "--bin", "chess-rs", "--release"]
 rd = ["run", "--features", "client,cheats", "--bin", "chess-rs"]
+b = ["build", "--features", "client,cheats", "--bin", "chess-rs", "--release"]
