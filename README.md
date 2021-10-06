@@ -7,6 +7,13 @@ Uses [macroquad](https://github.com/not-fl3/macroquad) for graphics rendering an
 
 Piece set by [Madware](https://opengameart.org/content/madwares-chess-set)
 
+## Building and running client
+
+```
+cd chess-rs-client
+cargo run
+```
+
 ## some features that it has right now
 
 - online multiplayer

@@ -236,16 +236,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "chess"
+name = "chess-rs-client"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "chess-rs-core",
  "clipboard",
  "egui",
  "egui-macroquad",
  "futures",
  "macroquad",
  "rodio 0.12.0",
+ "serde",
+]
+
+[[package]]
+name = "chess-rs-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "chess-rs-server"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "chess-rs-core",
  "serde",
 ]
 
