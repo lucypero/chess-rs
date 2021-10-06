@@ -30,7 +30,7 @@ jobs:
       run: cargo build --bin chess-rs-server --release
 
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --bin chess-rs-server --verbose
 
     # - name: Rustfmt and Clippy
     #   run: |
