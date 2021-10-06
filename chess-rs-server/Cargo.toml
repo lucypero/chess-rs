@@ -1,0 +1,11 @@
+[package]
+name = "chess-rs-server"
+version = "0.1.0"
+authors = ["Lucy <lucyperopero@gmail.com>"]
+edition = "2018"
+license = "AGPL-3.0-only"
+
+[dependencies]
+chess-rs-core = { path = "../chess-rs-core" }
+serde = { version = "1.0.125", features = ["derive"] }
+bincode = "1.3.3"

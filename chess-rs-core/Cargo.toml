@@ -1,0 +1,9 @@
+[package]
+name = "chess-rs-core"
+version = "0.1.0"
+authors = ["Lucy <lucyperopero@gmail.com>"]
+edition = "2018"
+license = "AGPL-3.0-only"
+
+[dependencies]
+serde = { version = "1.0.125", features = ["derive"] }
